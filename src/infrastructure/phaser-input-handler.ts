@@ -6,6 +6,10 @@ const KEY_DIRECTION_MAP: Record<string, Direction> = {
   S: 'down',
   A: 'left',
   D: 'right',
+  UP: 'up',
+  DOWN: 'down',
+  LEFT: 'left',
+  RIGHT: 'right',
 }
 
 export class InputHandler {
