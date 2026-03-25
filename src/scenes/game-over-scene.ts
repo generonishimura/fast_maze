@@ -16,33 +16,33 @@ export class GameOverScene extends Phaser.Scene {
   create(): void {
     const { width, height } = this.scale
 
-    this.cameras.main.setBackgroundColor('#1a1a2e')
+    this.cameras.main.setBackgroundColor('#0a0a1a')
     this.cameras.main.fadeIn(400, 0, 0, 0)
 
     const gameOverText = this.add.text(width / 2, height / 2 - 120, 'GAME OVER', {
-      fontFamily: "'Courier New', monospace",
-      fontSize: '64px',
+      fontFamily: "'Orbitron', sans-serif",
+      fontSize: '56px',
       color: '#e94560',
       fontStyle: 'bold',
       stroke: '#000000',
-      strokeThickness: 6,
+      strokeThickness: 4,
     })
     gameOverText.setOrigin(0.5)
 
     this.shakeText(gameOverText)
 
-    const stageText = this.add.text(width / 2, height / 2, `STAGE: ${this.stage}`, {
-      fontFamily: "'Courier New', monospace",
+    const stageText = this.add.text(width / 2, height / 2, `STAGE ${this.stage}`, {
+      fontFamily: "'Share Tech Mono', monospace",
       fontSize: '28px',
-      color: '#ffffff',
+      color: '#8892a4',
     })
     stageText.setOrigin(0.5)
     stageText.setAlpha(0)
 
-    const scoreText = this.add.text(width / 2, height / 2 + 50, `SCORE: ${this.score}`, {
-      fontFamily: "'Courier New', monospace",
+    const scoreText = this.add.text(width / 2, height / 2 + 50, `SCORE ${this.score}`, {
+      fontFamily: "'Orbitron', sans-serif",
       fontSize: '28px',
-      color: '#f5c518',
+      color: '#00e5ff',
     })
     scoreText.setOrigin(0.5)
     scoreText.setAlpha(0)
@@ -55,24 +55,19 @@ export class GameOverScene extends Phaser.Scene {
       ease: 'Power2',
     })
 
-    const retryText = this.add.text(width / 2, height / 2 + 150, 'Press SPACE to Title', {
-      fontFamily: "'Courier New', monospace",
-      fontSize: '20px',
-      color: '#aaaacc',
-    })
+    const hintStyle = {
+      fontFamily: "'Share Tech Mono', monospace",
+      fontSize: '18px',
+      color: '#c0ccda',
+      backgroundColor: 'rgba(10,10,26,0.6)',
+      padding: { x: 12, y: 4 },
+    }
+
+    const retryText = this.add.text(width / 2, height / 2 + 150, 'Tap or SPACE: Title', hintStyle)
     retryText.setOrigin(0.5)
     retryText.setAlpha(0)
 
-    const retrySameText = this.add.text(
-      width / 2,
-      height / 2 + 190,
-      'Press R to Retry Stage',
-      {
-        fontFamily: "'Courier New', monospace",
-        fontSize: '20px',
-        color: '#aaaacc',
-      },
-    )
+    const retrySameText = this.add.text(width / 2, height / 2 + 185, 'R: Retry Stage', hintStyle)
     retrySameText.setOrigin(0.5)
     retrySameText.setAlpha(0)
 
@@ -85,29 +80,36 @@ export class GameOverScene extends Phaser.Scene {
 
     this.tweens.add({
       targets: [retryText, retrySameText],
-      alpha: 0.4,
-      duration: 800,
+      alpha: 0.6,
+      duration: 900,
       delay: 1200,
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut',
     })
 
-    const spaceKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
-    spaceKey.once('down', () => {
+    const goToTitle = (): void => {
       this.cameras.main.fadeOut(300, 0, 0, 0)
       this.cameras.main.once('camerafadeoutcomplete', () => {
         this.scene.start('Title')
       })
-    })
+    }
 
-    const rKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.R)
-    rKey.once('down', () => {
+    const retryStage = (): void => {
       this.cameras.main.fadeOut(300, 0, 0, 0)
       this.cameras.main.once('camerafadeoutcomplete', () => {
         this.scene.start('Game', { stageNumber: this.stage, score: 0 })
       })
-    })
+    }
+
+    const spaceKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
+    const enterKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER)
+    spaceKey.once('down', goToTitle)
+    enterKey.once('down', goToTitle)
+    this.input.once('pointerup', goToTitle)
+
+    const rKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.R)
+    rKey.once('down', retryStage)
   }
 
   private shakeText(text: Phaser.GameObjects.Text): void {
@@ -120,7 +122,7 @@ export class GameOverScene extends Phaser.Scene {
         text.setX(baseX)
         return
       }
-      const offset = shakeCount % 2 === 0 ? 8 : -8
+      const offset = shakeCount % 2 === 0 ? 6 : -6
       text.setX(baseX + offset)
       shakeCount++
       this.time.delayedCall(50, doShake)
