@@ -4,7 +4,7 @@ export const TILE_SIZE = 32
 
 export const gameConfig: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
-  backgroundColor: '#1a1a2e',
+  backgroundColor: '#0a0a1a',
   parent: document.body,
   scale: {
     mode: Phaser.Scale.RESIZE,
