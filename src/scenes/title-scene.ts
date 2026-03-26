@@ -5,6 +5,10 @@ export class TitleScene extends Phaser.Scene {
     super({ key: 'Title' })
   }
 
+  preload(): void {
+    this.load.audio('bgm', 'High_Gear_Panic_.mp3')
+  }
+
   create(): void {
     const w = this.scale.width
     const h = this.scale.height
@@ -60,6 +64,11 @@ export class TitleScene extends Phaser.Scene {
     }).setOrigin(0.5)
 
     const startGame = (): void => {
+      // BGMがまだ再生されていなければ開始（ブラウザ自動再生ポリシー対策）
+      if (!this.sound.get('bgm')) {
+        this.sound.add('bgm', { loop: true, volume: 0.5 }).play()
+      }
+
       this.cameras.main.fadeOut(300, 0, 0, 0)
       this.cameras.main.once('camerafadeoutcomplete', () => {
         this.scene.start('Game', { stageNumber: 1, score: 0 })
