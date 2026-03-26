@@ -19,6 +19,13 @@
         touch-action: none;
       }
     </style>
+    <script>
+      // GitHub Pages SPA: restore path from 404 redirect
+      (function() {
+        var p = new URLSearchParams(window.location.search).get('p');
+        if (p) window.history.replaceState(null, '', p);
+      })();
+    </script>
   </head>
   <body>
     <script type="module" src="./src/main.ts"></script>

@@ -215,6 +215,11 @@ export class PlayerRenderer {
     }
   }
 
+  ignoreFromCamera(camera: Phaser.Cameras.Scene2D.Camera): void {
+    if (this.sprite) camera.ignore(this.sprite)
+    if (this.glow) camera.ignore(this.glow)
+  }
+
   destroy(): void {
     if (this.sprite) {
       this.sprite.destroy()

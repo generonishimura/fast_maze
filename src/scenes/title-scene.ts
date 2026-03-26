@@ -38,48 +38,101 @@ export class TitleScene extends Phaser.Scene {
       ease: 'Sine.easeInOut',
     })
 
-    // サブタイトル
-    const subText = this.add.text(w / 2, h / 2 + 20, 'Tap or Press SPACE', {
-      fontFamily: "'Share Tech Mono', monospace",
-      fontSize: '22px',
-      color: '#e94560',
-      backgroundColor: 'rgba(10,10,26,0.5)',
-      padding: { x: 12, y: 4 },
-    }).setOrigin(0.5)
+    // モード選択メニュー
+    const modes: { label: string; mode: 'normal' | 'endless' }[] = [
+      { label: 'STAGE MODE', mode: 'normal' },
+      { label: 'ENDLESS MODE', mode: 'endless' },
+    ]
 
-    this.tweens.add({
-      targets: subText,
-      alpha: 0.5,
-      duration: 800,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut',
+    const menuStyle = {
+      fontFamily: "'Orbitron', sans-serif",
+      fontSize: '22px',
+      color: '#8892a4',
+      backgroundColor: 'rgba(10,10,26,0.5)',
+      padding: { x: 20, y: 10 },
+    }
+
+    let selectedIndex = 0
+    const menuTexts = modes.map((item, i) => {
+      const text = this.add.text(w / 2, h / 2 + 20 + i * 55, item.label, menuStyle)
+        .setOrigin(0.5)
+        .setInteractive({ useHandCursor: true })
+
+      text.on('pointerover', () => {
+        selectedIndex = i
+        updateSelection()
+      })
+      text.on('pointerup', () => this.startMode(item.mode))
+
+      return text
     })
 
+    const updateSelection = (): void => {
+      menuTexts.forEach((text, i) => {
+        if (i === selectedIndex) {
+          text.setColor('#00e5ff')
+          text.setText(`> ${modes[i].label} <`)
+        } else {
+          text.setColor('#8892a4')
+          text.setText(modes[i].label)
+        }
+      })
+    }
+    updateSelection()
+
+    // キーボード操作
+    const upKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.UP)
+    const downKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN)
+    const wKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.W)
+    const sKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.S)
+    const spaceKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
+    const enterKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER)
+
+    const moveUp = (): void => {
+      selectedIndex = (selectedIndex - 1 + modes.length) % modes.length
+      updateSelection()
+    }
+    const moveDown = (): void => {
+      selectedIndex = (selectedIndex + 1) % modes.length
+      updateSelection()
+    }
+    const confirm = (): void => {
+      this.startMode(modes[selectedIndex].mode)
+    }
+
+    upKey.on('down', moveUp)
+    wKey.on('down', moveUp)
+    downKey.on('down', moveDown)
+    sKey.on('down', moveDown)
+    spaceKey.on('down', confirm)
+    enterKey.on('down', confirm)
+
     // 操作説明
-    this.add.text(w / 2, h - 60, 'WASD / Arrow Keys / Swipe', {
+    this.add.text(w / 2, h - 60, 'W/S or Up/Down to select  |  SPACE to start', {
       fontFamily: "'Share Tech Mono', monospace",
       fontSize: '14px',
       color: '#8a9bb0',
     }).setOrigin(0.5)
+  }
 
-    const startGame = (): void => {
-      // BGMがまだ再生されていなければ開始（ブラウザ自動再生ポリシー対策）
-      if (!this.sound.get('bgm')) {
-        this.sound.add('bgm', { loop: true, volume: 0.5 }).play()
-      }
+  private transitioning = false
 
-      this.cameras.main.fadeOut(300, 0, 0, 0)
-      this.cameras.main.once('camerafadeoutcomplete', () => {
-        this.scene.start('Game', { stageNumber: 1, score: 0 })
-      })
+  private startMode(mode: 'normal' | 'endless'): void {
+    if (this.transitioning) return
+    this.transitioning = true
+
+    if (!this.sound.get('bgm')) {
+      this.sound.add('bgm', { loop: true, volume: 0.5 }).play()
     }
 
-    const spaceKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
-    const enterKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER)
-    spaceKey.once('down', startGame)
-    enterKey.once('down', startGame)
-    this.input.once('pointerup', startGame)
+    this.cameras.main.fadeOut(300, 0, 0, 0)
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      if (mode === 'endless') {
+        this.scene.start('Endless')
+      } else {
+        this.scene.start('Game', { stageNumber: 1, score: 0 })
+      }
+    })
   }
 
   private drawMazeDecoration(w: number, h: number): void {

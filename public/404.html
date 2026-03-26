@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script>
+    // GitHub Pages SPA redirect
+    // /fast_maze/endless -> /fast_maze/?p=/endless
+    var path = window.location.pathname;
+    var repo = '/fast_maze';
+    if (path.startsWith(repo)) {
+      var route = path.slice(repo.length);
+      window.location.replace(repo + '/?p=' + encodeURIComponent(route));
+    }
+  </script>
+</head>
+<body></body>
+</html>
