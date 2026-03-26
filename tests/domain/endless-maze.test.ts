@@ -1,0 +1,121 @@
+import { describe, it, expect } from 'vitest'
+import { createEndlessMaze, getWorldCell, ensureChunkAt, ensureChunksAround, CHUNK_MAZE_SIZE, CHUNK_INNER_SIZE } from '@/domain/endless-maze'
+
+const CHUNK_SIZE = CHUNK_MAZE_SIZE
+const INNER_SIZE = CHUNK_INNER_SIZE
+
+// ワールド座標で孤立壁ブロックを検出
+function findIsolatedWallBlocks(
+  maze: ReturnType<typeof createEndlessMaze>,
+  minRow: number, maxRow: number, minCol: number, maxCol: number,
+): Array<{ row: number; col: number }> {
+  const isolated: Array<{ row: number; col: number }> = []
+  for (let r = minRow; r <= maxRow; r++) {
+    for (let c = minCol; c <= maxCol; c++) {
+      if (getWorldCell(maze, r, c) !== 'wall') continue
+      if (
+        getWorldCell(maze, r - 1, c) === 'passage' &&
+        getWorldCell(maze, r + 1, c) === 'passage' &&
+        getWorldCell(maze, r, c - 1) === 'passage' &&
+        getWorldCell(maze, r, c + 1) === 'passage'
+      ) {
+        isolated.push({ row: r, col: c })
+      }
+    }
+  }
+  return isolated
+}
+
+describe('createEndlessMaze', () => {
+  it('初期状態で中央チャンク(0,0)が生成される', () => {
+    const maze = createEndlessMaze(42)
+
+    // 中央チャンクのセルが取得できる
+    const cell = getWorldCell(maze, 1, 1)
+    expect(cell).toBe('passage')
+  })
+
+  it('外周の壁セルを返す', () => {
+    const maze = createEndlessMaze(42)
+
+    expect(getWorldCell(maze, 0, 0)).toBe('wall')
+  })
+})
+
+describe('getWorldCell', () => {
+  it('未生成チャンクのセルはwallを返す', () => {
+    const maze = createEndlessMaze(42)
+
+    // チャンク(1,0)は未生成
+    const cell = getWorldCell(maze, 1, INNER_SIZE + 5)
+    expect(cell).toBe('wall')
+  })
+
+  it('チャンク生成後はpassageセルが取得できる', () => {
+    let maze = createEndlessMaze(42)
+    maze = ensureChunkAt(maze, 0, 1)
+
+    // 隣のチャンク内の奇数位置は通路
+    const cell = getWorldCell(maze, 1, INNER_SIZE + 1)
+    expect(cell).toBe('passage')
+  })
+})
+
+describe('ensureChunkAt', () => {
+  it('隣接チャンクを生成すると境界に通路が接続される', () => {
+    let maze = createEndlessMaze(42)
+    maze = ensureChunkAt(maze, 0, 1)
+
+    // チャンク(0,0)の右端とチャンク(0,1)の左端の境界
+    // 少なくとも1つの奇数行で通路が繋がっている
+    let connectedCount = 0
+    for (let row = 1; row < CHUNK_SIZE - 1; row += 2) {
+      const rightEdge = getWorldCell(maze, row, INNER_SIZE)
+      const leftEdge = getWorldCell(maze, row, INNER_SIZE)
+      if (rightEdge === 'passage' && leftEdge === 'passage') {
+        connectedCount++
+      }
+    }
+    expect(connectedCount).toBeGreaterThan(0)
+  })
+
+  it('同じチャンクを複数回生成しても冪等', () => {
+    let maze = createEndlessMaze(42)
+    const maze1 = ensureChunkAt(maze, 0, 1)
+    const maze2 = ensureChunkAt(maze1, 0, 1)
+
+    for (let row = 0; row < CHUNK_SIZE; row++) {
+      for (let col = INNER_SIZE; col < INNER_SIZE + CHUNK_SIZE; col++) {
+        expect(getWorldCell(maze1, row, col)).toBe(getWorldCell(maze2, row, col))
+      }
+    }
+  })
+
+  it('負のチャンク座標にも生成できる', () => {
+    let maze = createEndlessMaze(42)
+    maze = ensureChunkAt(maze, 0, -1)
+
+    // 負方向のチャンク内の通路セル
+    const cell = getWorldCell(maze, 1, -INNER_SIZE + 1)
+    expect(cell).toBe('passage')
+  })
+})
+
+describe('孤立壁ブロック', () => {
+  it('複数チャンクの境界で孤立壁ブロックが生まれない', () => {
+    for (let seed = 0; seed < 50; seed++) {
+      let maze = createEndlessMaze(seed)
+      // 3x3チャンクを生成
+      maze = ensureChunksAround(maze, INNER_SIZE / 2, INNER_SIZE / 2)
+
+      // チャンク(0,0)とその周囲の境界領域をチェック
+      const isolated = findIsolatedWallBlocks(
+        maze,
+        1, INNER_SIZE * 2 - 2,
+        1, INNER_SIZE * 2 - 2,
+      )
+
+      expect(isolated).toEqual([])
+    }
+  })
+})

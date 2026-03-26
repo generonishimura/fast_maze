@@ -2,10 +2,11 @@ import { defineConfig } from 'vite'
 import path from 'path'
 
 export default defineConfig({
-  base: '/fast_maze/',
+  base: process.env.NODE_ENV === 'production' ? '/fast_maze/' : '/',
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),
     },
   },
+  appType: 'spa',
 })

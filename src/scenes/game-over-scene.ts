@@ -3,14 +3,16 @@ import Phaser from 'phaser'
 export class GameOverScene extends Phaser.Scene {
   private score = 0
   private stage = 1
+  private mode: 'normal' | 'endless' = 'normal'
 
   constructor() {
     super({ key: 'GameOver' })
   }
 
-  init(data: { score: number; stage: number }): void {
+  init(data: { score: number; stage: number; mode?: 'normal' | 'endless' }): void {
     this.score = data.score
     this.stage = data.stage
+    this.mode = data.mode ?? 'normal'
   }
 
   create(): void {
@@ -31,7 +33,8 @@ export class GameOverScene extends Phaser.Scene {
 
     this.shakeText(gameOverText)
 
-    const stageText = this.add.text(width / 2, height / 2, `STAGE ${this.stage}`, {
+    const stageLabel = this.mode === 'endless' ? 'ENDLESS' : `STAGE ${this.stage}`
+    const stageText = this.add.text(width / 2, height / 2, stageLabel, {
       fontFamily: "'Share Tech Mono', monospace",
       fontSize: '28px',
       color: '#8892a4',
@@ -63,11 +66,17 @@ export class GameOverScene extends Phaser.Scene {
       padding: { x: 12, y: 4 },
     }
 
-    const retryText = this.add.text(width / 2, height / 2 + 150, 'Tap or SPACE: Title', hintStyle)
+    const retryLabel = this.mode === 'endless'
+      ? 'Tap or SPACE: Retry'
+      : 'Tap or SPACE: Title'
+    const retryText = this.add.text(width / 2, height / 2 + 150, retryLabel, hintStyle)
     retryText.setOrigin(0.5)
     retryText.setAlpha(0)
 
-    const retrySameText = this.add.text(width / 2, height / 2 + 185, 'R: Retry Stage', hintStyle)
+    const retrySameLabel = this.mode === 'endless'
+      ? 'T: Back to Title'
+      : 'R: Retry Stage'
+    const retrySameText = this.add.text(width / 2, height / 2 + 185, retrySameLabel, hintStyle)
     retrySameText.setOrigin(0.5)
     retrySameText.setAlpha(0)
 
@@ -98,18 +107,32 @@ export class GameOverScene extends Phaser.Scene {
     const retryStage = (): void => {
       this.cameras.main.fadeOut(300, 0, 0, 0)
       this.cameras.main.once('camerafadeoutcomplete', () => {
-        this.scene.start('Game', { stageNumber: this.stage, score: 0 })
+        if (this.mode === 'endless') {
+          this.scene.start('Endless')
+        } else {
+          this.scene.start('Game', { stageNumber: this.stage, score: 0 })
+        }
       })
     }
 
     const spaceKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
     const enterKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER)
-    spaceKey.once('down', goToTitle)
-    enterKey.once('down', goToTitle)
-    this.input.once('pointerup', goToTitle)
 
-    const rKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.R)
-    rKey.once('down', retryStage)
+    if (this.mode === 'endless') {
+      // エンドレス: SPACE/タップでリトライ、Tでタイトル
+      spaceKey.once('down', retryStage)
+      enterKey.once('down', retryStage)
+      this.input.once('pointerup', retryStage)
+      const tKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.T)
+      tKey.once('down', goToTitle)
+    } else {
+      // 通常: SPACE/タップでタイトル、Rでリトライ
+      spaceKey.once('down', goToTitle)
+      enterKey.once('down', goToTitle)
+      this.input.once('pointerup', goToTitle)
+      const rKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.R)
+      rKey.once('down', retryStage)
+    }
   }
 
   private shakeText(text: Phaser.GameObjects.Text): void {
