@@ -34,6 +34,8 @@ export class EndlessGameScene extends Phaser.Scene {
   private stunTimer = 0
   private stunText: Phaser.GameObjects.Text | null = null
   private hudLivesText!: Phaser.GameObjects.Text
+  private stunEffectAnimating = false
+  private stunEffectTimer = 0
 
   constructor() {
     super({ key: 'Endless' })
@@ -53,6 +55,8 @@ export class EndlessGameScene extends Phaser.Scene {
     this.crashAnimating = false
     this.stunTimer = 0
     this.stunText = null
+    this.stunEffectAnimating = false
+    this.stunEffectTimer = 0
   }
 
   create(): void {
@@ -148,6 +152,18 @@ export class EndlessGameScene extends Phaser.Scene {
   update(_time: number, delta: number): void {
     if (this.crashAnimating) return
     if (this.gameState.status === 'game-over') return
+
+    // スタンエフェクト中: 0.8秒間入力無効
+    if (this.stunEffectAnimating) {
+      this.stunEffectTimer += delta
+      // 入力を捨てる
+      this.getDirection()
+      if (this.stunEffectTimer >= 800) {
+        this.stunEffectAnimating = false
+        this.showStunGuide()
+      }
+      return
+    }
 
     if (this.gameState.status === 'stunned') {
       this.handleStunned(delta)
@@ -288,25 +304,50 @@ export class EndlessGameScene extends Phaser.Scene {
 
   private readonly STUN_TIMEOUT_MS = 5000
 
+  private readonly STUN_EFFECT_DURATION_MS = 800
+
   private playStunEffect(): void {
     this.movementProgress = 0
-    this.cameras.main.shake(200, 0.01)
+    this.cameras.main.shake(300, 0.015)
 
     const pos = this.gameState.player.position
-    const wallPos = moveForward(this.gameState.player)
-    this.playerRenderer.updatePosition(pos, wallPos, 0.3, this.gameState.player.direction)
 
-    const cx = (pos.col * 0.7 + wallPos.col * 0.3) * TILE_SIZE + TILE_SIZE / 2
-    const cy = (pos.row * 0.7 + wallPos.row * 0.3) * TILE_SIZE + TILE_SIZE / 2
-    this.spawnCrashParticles(cx, cy)
+    if (this.gameState.deathCause === 'insector') {
+      // 虫衝突: プレイヤー位置でエフェクト、インセクターを消す
+      const px = pos.col * TILE_SIZE + TILE_SIZE / 2
+      const py = pos.row * TILE_SIZE + TILE_SIZE / 2
+      this.spawnCrashParticles(px, py)
+      this.playerRenderer.updatePosition(pos, pos, 0, this.gameState.player.direction)
+
+      if (this.insectorRenderer) {
+        this.insectorRenderer.destroy()
+        this.insectorRenderer = null
+        this.prevInsectorPosition = null
+        this.insectorDespawning = false
+      }
+    } else {
+      // 壁衝突: 壁方向に寄せてエフェクト
+      const wallPos = moveForward(this.gameState.player)
+      this.playerRenderer.updatePosition(pos, wallPos, 0.3, this.gameState.player.direction)
+
+      const cx = (pos.col * 0.7 + wallPos.col * 0.3) * TILE_SIZE + TILE_SIZE / 2
+      const cy = (pos.row * 0.7 + wallPos.row * 0.3) * TILE_SIZE + TILE_SIZE / 2
+      this.spawnCrashParticles(cx, cy)
+    }
+
+    // プレイヤー点滅エフェクト（0.8秒間）
+    this.playerRenderer.blink(this.STUN_EFFECT_DURATION_MS)
 
     // HUD更新
     this.hudLivesText.setText(`LIVES ${this.gameState.lives}`)
 
-    // stunタイマーリセット
+    // 0.8秒間エフェクト → 入力無効
+    this.stunEffectAnimating = true
+    this.stunEffectTimer = 0
     this.stunTimer = 0
+  }
 
-    // ガイドテキスト表示
+  private showStunGuide(): void {
     const screenW = this.scale.width
     const screenH = this.scale.height
     this.stunText = this.add.text(screenW / 2, screenH - 60, 'WASD to Resume (5s)', {
