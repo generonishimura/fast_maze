@@ -32,6 +32,7 @@ DDD/Clean Architecture。ドメイン層はPhaserに一切依存しない純粋T
   - `maze-generator.ts`: 再帰バックトラッキングによる迷路生成（通常 + 境界制約付き）
   - `endless-maze.ts`: チャンクベース無限迷路（`CHUNK_MAZE_SIZE=21`、境界契約で接続）
   - `player.ts`, `collision.ts`, `goal.ts`, `placement.ts`, `stage.ts`: 各ドメインルール
+  - `insector.ts`: エンドレスモードの敵（BFS経路探索、スポーン、衝突判定）
 - **`src/application/`** — ゲームフロー（ドメインの組み合わせ）
   - `game-flow.ts`: ステージモードの`initStage`/`tick`/`handleDirectionChange`
   - `endless-game-flow.ts`: エンドレスモードのフロー
