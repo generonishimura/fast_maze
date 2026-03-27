@@ -7,6 +7,7 @@ import type { Direction } from '@/domain/types'
 import type { EndlessGameState } from '@/domain/endless-types'
 import { EndlessMazeRenderer } from '@/infrastructure/endless-maze-renderer'
 import { PlayerRenderer } from '@/infrastructure/phaser-player-renderer'
+import { FruitRenderer } from '@/infrastructure/fruit-renderer'
 import { InputHandler } from '@/infrastructure/phaser-input-handler'
 import { SwipeHandler } from '@/infrastructure/swipe-handler'
 
@@ -14,6 +15,7 @@ export class EndlessGameScene extends Phaser.Scene {
   private gameState!: EndlessGameState
   private mazeRenderer!: EndlessMazeRenderer
   private playerRenderer!: PlayerRenderer
+  private fruitRenderer!: FruitRenderer
   private inputHandler!: InputHandler
   private swipeHandler!: SwipeHandler
   private movementProgress = 0
@@ -61,6 +63,7 @@ export class EndlessGameScene extends Phaser.Scene {
     )
 
     this.playerRenderer = new PlayerRenderer(this, TILE_SIZE, this.gameState.player.direction)
+    this.fruitRenderer = new FruitRenderer(this, TILE_SIZE, this.hudCamera)
     this.inputHandler = new InputHandler(this)
     this.swipeHandler = new SwipeHandler(this)
 
@@ -71,6 +74,9 @@ export class EndlessGameScene extends Phaser.Scene {
       0,
       this.gameState.player.direction,
     )
+
+    // 果物を初期描画
+    this.fruitRenderer.syncFruits(this.gameState.fruits)
 
     // カメラ追従用の透明オブジェクト
     this.cameraTarget = this.add.rectangle(
@@ -163,6 +169,12 @@ export class EndlessGameScene extends Phaser.Scene {
         this.gameState.player.position.col,
       )
 
+      // 果物の取得エフェクト＆描画更新
+      if (this.gameState.collectedFruit) {
+        this.fruitRenderer.playCollectEffect(this.gameState.collectedFruit)
+      }
+      this.fruitRenderer.syncFruits(this.gameState.fruits)
+
       // HUD更新
       this.hudScoreText.setText(`SCORE ${this.gameState.score}`)
       this.hudDistanceText.setText(`${this.gameState.distance}m`)
@@ -245,6 +257,7 @@ export class EndlessGameScene extends Phaser.Scene {
   private cleanup(): void {
     this.mazeRenderer.destroy()
     this.playerRenderer.destroy()
+    this.fruitRenderer.destroy()
     this.inputHandler.destroy()
     this.swipeHandler.destroy()
     this.cameraTarget.destroy()
