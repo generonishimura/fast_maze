@@ -117,7 +117,7 @@ export class TitleScene extends Phaser.Scene {
     enterKey.on('down', confirm)
 
     // 操作説明
-    this.add.text(w / 2, h - 60, 'W/S or Up/Down to select  |  SPACE to start', {
+    this.add.text(w / 2, h - 60, 'W/S or Up/Down to select  |  SPACE to start  |  M to mute', {
       fontFamily: "'Share Tech Mono', monospace",
       fontSize: '14px',
       color: '#8a9bb0',

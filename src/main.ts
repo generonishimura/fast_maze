@@ -19,4 +19,32 @@ const game = new Phaser.Game({
   scene: allScenes,
 })
 
+// Mキーでミュートトグル
+const muteIndicator = document.createElement('div')
+muteIndicator.id = 'mute-indicator'
+muteIndicator.style.cssText = `
+  position: fixed; bottom: 12px; left: 12px; z-index: 1000;
+  font-family: 'Share Tech Mono', monospace; font-size: 13px;
+  color: #8892a4; background: rgba(10,10,26,0.7);
+  padding: 4px 10px; border-radius: 4px; pointer-events: none;
+  opacity: 0; transition: opacity 0.3s;
+`
+document.body.appendChild(muteIndicator)
+
+let hideTimer: ReturnType<typeof setTimeout> | null = null
+
+function showMuteStatus(): void {
+  muteIndicator.textContent = game.sound.mute ? '♪ MUTED' : '♪ ON'
+  muteIndicator.style.opacity = '1'
+  if (hideTimer) clearTimeout(hideTimer)
+  hideTimer = setTimeout(() => { muteIndicator.style.opacity = '0' }, 1500)
+}
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'm' || e.key === 'M') {
+    game.sound.mute = !game.sound.mute
+    showMuteStatus()
+  }
+})
+
 export default game
