@@ -18,6 +18,15 @@ export class TitleScene extends Phaser.Scene {
 
     this.drawMazeDecoration(w, h)
 
+    // フォント読み込み完了を待ってからテキストUIを構築
+    Promise.all([
+      document.fonts.load("bold 64px 'Orbitron'"),
+      document.fonts.load("22px 'Orbitron'"),
+      document.fonts.load("14px 'Share Tech Mono'"),
+    ]).then(() => this.buildTextUI(w, h))
+  }
+
+  private buildTextUI(w: number, h: number): void {
     // タイトル
     const titleText = this.add.text(w / 2, h / 2 - 80, 'FAST MAZE', {
       fontFamily: "'Orbitron', sans-serif",
