@@ -148,7 +148,7 @@ export class FruitRenderer {
     const offset = Math.floor((this.tileSize - pixelSize * SPRITE_SIZE) / 2)
 
     for (const type of types) {
-      const rt = this.scene.add.renderTexture(0, 0, this.tileSize, this.tileSize).setVisible(false)
+      const rt = this.scene.add.renderTexture(0, 0, this.tileSize, this.tileSize).setOrigin(0, 0).setVisible(false)
       const { sprite, palette } = FRUIT_SPRITES[type]
       const gfx = this.scene.add.graphics().setVisible(false)
 
