@@ -1,6 +1,7 @@
 import type { PlayerState } from '@/domain/types'
 import type { EndlessMazeState } from '@/domain/endless-maze'
 import type { FruitType } from '@/domain/fruit'
+import type { InsectorState } from '@/domain/insector'
 
 export type WorldFruit = {
   readonly type: FruitType
@@ -20,4 +21,7 @@ export type EndlessGameState = {
   readonly status: 'playing' | 'game-over'
   readonly fruits: ReadonlyMap<string, WorldFruit>
   readonly collectedFruit: WorldFruit | null
+  readonly insector: InsectorState | null
+  readonly insectorCooldown: number
+  readonly deathCause: 'wall' | 'insector' | null
 }
