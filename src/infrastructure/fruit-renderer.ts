@@ -132,11 +132,44 @@ export class FruitRenderer {
   private readonly tileSize: number
   private readonly hudCamera: Phaser.Cameras.Scene2D.Camera
   private readonly fruitObjects = new Map<string, FruitGameObject>()
+  // #2: 5種類のフルーツスプライトテンプレートを事前キャッシュ
+  private readonly spriteTemplates = new Map<FruitType, Phaser.GameObjects.RenderTexture>()
 
   constructor(scene: Phaser.Scene, tileSize: number, hudCamera: Phaser.Cameras.Scene2D.Camera) {
     this.scene = scene
     this.tileSize = tileSize
     this.hudCamera = hudCamera
+    this.buildSpriteTemplates()
+  }
+
+  private buildSpriteTemplates(): void {
+    const types: FruitType[] = ['cherry', 'orange', 'apple', 'grape', 'melon']
+    const pixelSize = Math.floor(this.tileSize / SPRITE_SIZE)
+    const offset = Math.floor((this.tileSize - pixelSize * SPRITE_SIZE) / 2)
+
+    for (const type of types) {
+      const rt = this.scene.add.renderTexture(0, 0, this.tileSize, this.tileSize).setVisible(false)
+      const { sprite, palette } = FRUIT_SPRITES[type]
+      const gfx = this.scene.add.graphics().setVisible(false)
+
+      for (let row = 0; row < SPRITE_SIZE; row++) {
+        for (let col = 0; col < SPRITE_SIZE; col++) {
+          const value = sprite[row][col]
+          if (value === 0) continue
+          gfx.fillStyle(palette[value])
+          gfx.fillRect(
+            offset + col * pixelSize,
+            offset + row * pixelSize,
+            pixelSize,
+            pixelSize,
+          )
+        }
+      }
+
+      rt.draw(gfx)
+      gfx.destroy()
+      this.spriteTemplates.set(type, rt)
+    }
   }
 
   syncFruits(fruits: ReadonlyMap<string, WorldFruit>): void {
@@ -179,38 +212,15 @@ export class FruitRenderer {
         .setPosition(x, y)
         .setDepth(8)
 
-      this.drawFruitSprite(sprite, fruit.type)
+      const template = this.spriteTemplates.get(fruit.type)
+      if (template) {
+        sprite.draw(template)
+      }
 
       this.hudCamera.ignore(sprite)
       this.hudCamera.ignore(glow)
       this.fruitObjects.set(key, { sprite, glow })
     }
-  }
-
-  private drawFruitSprite(rt: Phaser.GameObjects.RenderTexture, type: FruitType): void {
-    rt.clear()
-
-    const { sprite, palette } = FRUIT_SPRITES[type]
-    const pixelSize = Math.floor(this.tileSize / SPRITE_SIZE)
-    const offset = Math.floor((this.tileSize - pixelSize * SPRITE_SIZE) / 2)
-    const gfx = this.scene.add.graphics().setVisible(false)
-
-    for (let row = 0; row < SPRITE_SIZE; row++) {
-      for (let col = 0; col < SPRITE_SIZE; col++) {
-        const value = sprite[row][col]
-        if (value === 0) continue
-        gfx.fillStyle(palette[value])
-        gfx.fillRect(
-          offset + col * pixelSize,
-          offset + row * pixelSize,
-          pixelSize,
-          pixelSize,
-        )
-      }
-    }
-
-    rt.draw(gfx)
-    gfx.destroy()
   }
 
   playCollectEffect(fruit: WorldFruit): void {
@@ -264,5 +274,9 @@ export class FruitRenderer {
       obj.glow.destroy()
     }
     this.fruitObjects.clear()
+    for (const rt of this.spriteTemplates.values()) {
+      rt.destroy()
+    }
+    this.spriteTemplates.clear()
   }
 }

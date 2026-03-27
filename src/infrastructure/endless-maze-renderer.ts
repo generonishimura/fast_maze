@@ -8,6 +8,7 @@ export class EndlessMazeRenderer {
   private readonly ignoreCamera: Phaser.Cameras.Scene2D.Camera | null
   private renderTextures: Map<string, Phaser.GameObjects.RenderTexture> = new Map()
   private chunkHashes: Map<string, string> = new Map()
+  private lastChunksRef: ReadonlyMap<string, unknown> | null = null
 
   constructor(
     scene: Phaser.Scene,
@@ -20,14 +21,15 @@ export class EndlessMazeRenderer {
   }
 
   renderChunksAround(maze: EndlessMazeState, worldRow: number, worldCol: number): void {
+    // #3: chunksの参照が同一なら再描画不要（チャンク内容は不変）
+    if (maze.chunks === this.lastChunksRef) return
+    this.lastChunksRef = maze.chunks
+
     const cx = Math.floor(worldCol / CHUNK_INNER_SIZE)
     const cy = Math.floor(worldRow / CHUNK_INNER_SIZE)
 
-    const activeKeys = new Set<string>()
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
-        const key = `${cx + dx},${cy + dy}`
-        activeKeys.add(key)
         this.renderChunkIfChanged(maze, cx + dx, cy + dy)
       }
     }

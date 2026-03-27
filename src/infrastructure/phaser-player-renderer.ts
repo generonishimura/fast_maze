@@ -127,6 +127,8 @@ export class PlayerRenderer {
   private glow: Phaser.GameObjects.Arc | null = null
   private currentDirection: Direction
   private currentFrame = 0
+  // #1: 4方向×2フレーム=8パターンを事前キャッシュ
+  private readonly spriteCache: Map<string, Phaser.GameObjects.RenderTexture> = new Map()
 
   constructor(scene: Phaser.Scene, tileSize: number, initialDirection: Direction) {
     this.scene = scene
@@ -149,40 +151,56 @@ export class PlayerRenderer {
       ease: 'Sine.easeInOut',
     })
 
+    // 全スプライトパターンを事前生成
+    this.buildSpriteCache()
+
     // ドット絵スプライト
     this.sprite = scene.add.renderTexture(0, 0, tileSize, tileSize)
       .setOrigin(0.5, 0.5)
       .setDepth(10)
 
-    this.drawSprite(initialDirection, 0)
+    this.applySprite(initialDirection, 0)
   }
 
-  private drawSprite(direction: Direction, frame: number): void {
-    if (!this.sprite) return
-
-    this.sprite.clear()
-
+  private buildSpriteCache(): void {
+    const directions: Direction[] = ['up', 'down', 'left', 'right']
     const pixelSize = Math.floor(this.tileSize / SPRITE_SIZE)
     const offset = Math.floor((this.tileSize - pixelSize * SPRITE_SIZE) / 2)
-    const pattern = SPRITES[direction][frame]
-    const gfx = this.scene.add.graphics().setVisible(false)
 
-    for (let row = 0; row < SPRITE_SIZE; row++) {
-      for (let col = 0; col < SPRITE_SIZE; col++) {
-        const value = pattern[row][col]
-        if (value === 0) continue
-        gfx.fillStyle(PALETTE[value])
-        gfx.fillRect(
-          offset + col * pixelSize,
-          offset + row * pixelSize,
-          pixelSize,
-          pixelSize,
-        )
+    for (const dir of directions) {
+      for (let frame = 0; frame < 2; frame++) {
+        const rt = this.scene.add.renderTexture(0, 0, this.tileSize, this.tileSize)
+          .setVisible(false)
+        const pattern = SPRITES[dir][frame]
+        const gfx = this.scene.add.graphics().setVisible(false)
+
+        for (let row = 0; row < SPRITE_SIZE; row++) {
+          for (let col = 0; col < SPRITE_SIZE; col++) {
+            const value = pattern[row][col]
+            if (value === 0) continue
+            gfx.fillStyle(PALETTE[value])
+            gfx.fillRect(
+              offset + col * pixelSize,
+              offset + row * pixelSize,
+              pixelSize,
+              pixelSize,
+            )
+          }
+        }
+
+        rt.draw(gfx)
+        gfx.destroy()
+        this.spriteCache.set(`${dir}_${frame}`, rt)
       }
     }
+  }
 
-    this.sprite.draw(gfx)
-    gfx.destroy()
+  private applySprite(direction: Direction, frame: number): void {
+    if (!this.sprite) return
+    const cached = this.spriteCache.get(`${direction}_${frame}`)
+    if (!cached) return
+    this.sprite.clear()
+    this.sprite.draw(cached)
   }
 
   updatePosition(currentPos: Position, nextPos: Position, progress: number, direction: Direction): void {
@@ -207,7 +225,7 @@ export class PlayerRenderer {
     if (direction !== this.currentDirection || nextFrame !== this.currentFrame) {
       this.currentDirection = direction
       this.currentFrame = nextFrame
-      this.drawSprite(direction, nextFrame)
+      this.applySprite(direction, nextFrame)
     }
 
     if (this.glow) {
@@ -229,5 +247,9 @@ export class PlayerRenderer {
       this.glow.destroy()
       this.glow = null
     }
+    for (const rt of this.spriteCache.values()) {
+      rt.destroy()
+    }
+    this.spriteCache.clear()
   }
 }
