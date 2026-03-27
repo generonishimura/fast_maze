@@ -1,5 +1,5 @@
 import Phaser from 'phaser'
-import { getWorldCell, CHUNK_MAZE_SIZE, CHUNK_INNER_SIZE } from '@/domain/endless-maze'
+import { getWorldCell, CHUNK_MAZE_SIZE, CHUNK_INNER_SIZE, CHUNK_RENDER_RADIUS } from '@/domain/endless-maze'
 import type { EndlessMazeState } from '@/domain/endless-maze'
 
 export class EndlessMazeRenderer {
@@ -28,8 +28,9 @@ export class EndlessMazeRenderer {
     const cx = Math.floor(worldCol / CHUNK_INNER_SIZE)
     const cy = Math.floor(worldRow / CHUNK_INNER_SIZE)
 
-    for (let dy = -1; dy <= 1; dy++) {
-      for (let dx = -1; dx <= 1; dx++) {
+    // カメラのビューポートをカバーするため広めに描画
+    for (let dy = -CHUNK_RENDER_RADIUS; dy <= CHUNK_RENDER_RADIUS; dy++) {
+      for (let dx = -CHUNK_RENDER_RADIUS; dx <= CHUNK_RENDER_RADIUS; dx++) {
         this.renderChunkIfChanged(maze, cx + dx, cy + dy)
       }
     }

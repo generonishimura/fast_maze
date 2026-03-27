@@ -119,6 +119,39 @@ describe('ensureChunksAround', () => {
     expect(maze.chunks.has('5,0')).toBe(true)
   })
 
+  it('描画範囲チャンクの境界セルが正しくレンダリングされるよう先読みされる', () => {
+    let maze = createEndlessMaze(42)
+
+    // チャンク(0,0)中央付近でensureChunksAroundを呼ぶ
+    maze = ensureChunksAround(maze, INNER_SIZE / 2, INNER_SIZE / 2)
+
+    // 描画範囲（±1チャンク）の外縁チャンク(1,0)の右境界を確認
+    // チャンク(2,0)が存在しないと、境界セルがすべてwallになる
+    // 先読みが正しければチャンク(2,0)が生成済みで、境界通路が表示される
+    const rightBorderCol = INNER_SIZE * 2 // チャンク(1,0)の右端 = チャンク(2,0)の左端
+    let hasPassageAtBorder = false
+    for (let row = 1; row < CHUNK_SIZE; row += 2) {
+      if (getWorldCell(maze, row, rightBorderCol) === 'passage') {
+        hasPassageAtBorder = true
+        break
+      }
+    }
+    expect(hasPassageAtBorder).toBe(true)
+  })
+
+  it('描画範囲の全方向で境界チャンクの隣接チャンクが先読みされている', () => {
+    let maze = createEndlessMaze(42)
+    maze = ensureChunksAround(maze, INNER_SIZE / 2, INNER_SIZE / 2)
+
+    // プレイヤーのチャンク(0,0)から描画範囲±1の外縁にあるチャンクの
+    // さらに外側のチャンクが存在するか確認
+    // 例: チャンク(1,1)の右隣(2,1)、下隣(1,2)が存在すべき
+    expect(maze.chunks.has('2,1')).toBe(true)
+    expect(maze.chunks.has('1,2')).toBe(true)
+    expect(maze.chunks.has('-2,-1')).toBe(true)
+    expect(maze.chunks.has('-1,-2')).toBe(true)
+  })
+
   it('borderContractキャッシュが同じ結果を返す', () => {
     const maze = createEndlessMaze(42)
 

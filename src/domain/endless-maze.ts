@@ -166,6 +166,10 @@ export function ensureChunkAt(maze: EndlessMazeState, cy: number, cx: number): E
   return { ...maze, chunks: newChunks }
 }
 
+/** 描画チャンクの境界セルを正しく表示するための先読み半径 */
+const CHUNK_LOAD_RADIUS = 2
+/** レンダラーが描画するチャンクの半径 */
+export const CHUNK_RENDER_RADIUS = 2
 const CHUNK_KEEP_RADIUS = 3
 
 export function ensureChunksAround(
@@ -175,10 +179,10 @@ export function ensureChunksAround(
 ): EndlessMazeState {
   const { cx, cy } = worldToChunk(worldRow, worldCol)
 
-  // Step 3: 必要チャンクを一括判定し、Mapコピーを最大1回に抑える
+  // 描画チャンクの境界セルが正しく表示されるよう先読みする
   const needed: Array<[number, number, ChunkKey]> = []
-  for (let dy = -1; dy <= 1; dy++) {
-    for (let dx = -1; dx <= 1; dx++) {
+  for (let dy = -CHUNK_LOAD_RADIUS; dy <= CHUNK_LOAD_RADIUS; dy++) {
+    for (let dx = -CHUNK_LOAD_RADIUS; dx <= CHUNK_LOAD_RADIUS; dx++) {
       const key = chunkKey(cx + dx, cy + dy)
       if (!maze.chunks.has(key)) {
         needed.push([cx + dx, cy + dy, key])
