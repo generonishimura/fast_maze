@@ -10,6 +10,8 @@ export class TitleScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.transitioning = false
+
     const w = this.scale.width
     const h = this.scale.height
 
