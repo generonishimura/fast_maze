@@ -170,6 +170,7 @@ export class PlayerRenderer {
     for (const dir of directions) {
       for (let frame = 0; frame < 2; frame++) {
         const rt = this.scene.add.renderTexture(0, 0, this.tileSize, this.tileSize)
+          .setOrigin(0, 0)
           .setVisible(false)
         const pattern = SPRITES[dir][frame]
         const gfx = this.scene.add.graphics().setVisible(false)
