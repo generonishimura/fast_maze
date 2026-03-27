@@ -101,6 +101,34 @@ describe('ensureChunkAt', () => {
   })
 })
 
+describe('ensureChunksAround', () => {
+  it('遠方チャンクがプルーニングされる', () => {
+    let maze = createEndlessMaze(42)
+
+    // チャンク(0,0)周辺を生成
+    maze = ensureChunksAround(maze, INNER_SIZE / 2, INNER_SIZE / 2)
+    const initialChunkCount = maze.chunks.size
+
+    // 遠くに移動（チャンク座標で5以上離れる）
+    const farCol = INNER_SIZE * 5 + INNER_SIZE / 2
+    maze = ensureChunksAround(maze, INNER_SIZE / 2, farCol)
+
+    // 元の(0,0)付近のチャンクは削除されているはず
+    expect(maze.chunks.has('0,0')).toBe(false)
+    // 新しい位置の周辺チャンクは存在
+    expect(maze.chunks.has('5,0')).toBe(true)
+  })
+
+  it('borderContractキャッシュが同じ結果を返す', () => {
+    const maze = createEndlessMaze(42)
+
+    // 同じ境界セルを複数回取得しても同じ結果
+    const cell1 = getWorldCell(maze, 0, 1)
+    const cell2 = getWorldCell(maze, 0, 1)
+    expect(cell1).toBe(cell2)
+  })
+})
+
 describe('孤立壁ブロック', () => {
   it('複数チャンクの境界で孤立壁ブロックが生まれない', () => {
     for (let seed = 0; seed < 50; seed++) {

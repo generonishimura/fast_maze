@@ -23,9 +23,21 @@ export class EndlessMazeRenderer {
     const cx = Math.floor(worldCol / CHUNK_INNER_SIZE)
     const cy = Math.floor(worldRow / CHUNK_INNER_SIZE)
 
+    const activeKeys = new Set<string>()
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
+        const key = `${cx + dx},${cy + dy}`
+        activeKeys.add(key)
         this.renderChunkIfChanged(maze, cx + dx, cy + dy)
+      }
+    }
+
+    // ドメイン層から削除されたチャンクのテクスチャを破棄
+    for (const [key, rt] of this.renderTextures) {
+      if (!maze.chunks.has(key)) {
+        rt.destroy()
+        this.renderTextures.delete(key)
+        this.chunkHashes.delete(key)
       }
     }
   }
@@ -33,16 +45,16 @@ export class EndlessMazeRenderer {
   private computeChunkHash(maze: EndlessMazeState, cx: number, cy: number): string {
     const chunk = maze.chunks.get(`${cx},${cy}`)
     if (!chunk) return ''
-    let hash = ''
+    const parts: string[] = []
     for (let row = 0; row < CHUNK_MAZE_SIZE; row++) {
-      hash += chunk[row][0] === 'passage' ? '1' : '0'
-      hash += chunk[row][CHUNK_MAZE_SIZE - 1] === 'passage' ? '1' : '0'
+      parts.push(chunk[row][0] === 'passage' ? '1' : '0')
+      parts.push(chunk[row][CHUNK_MAZE_SIZE - 1] === 'passage' ? '1' : '0')
     }
     for (let col = 0; col < CHUNK_MAZE_SIZE; col++) {
-      hash += chunk[0][col] === 'passage' ? '1' : '0'
-      hash += chunk[CHUNK_MAZE_SIZE - 1][col] === 'passage' ? '1' : '0'
+      parts.push(chunk[0][col] === 'passage' ? '1' : '0')
+      parts.push(chunk[CHUNK_MAZE_SIZE - 1][col] === 'passage' ? '1' : '0')
     }
-    return hash
+    return parts.join('')
   }
 
   private renderChunkIfChanged(maze: EndlessMazeState, cx: number, cy: number): void {

@@ -137,7 +137,8 @@ export function endlessTick(state: EndlessGameState): EndlessGameState {
     fruits.delete(key)
   }
 
-  const newVisited = isNewTile ? new Set(state.visited).add(key) : state.visited
+  if (isNewTile) (state.visited as Set<string>).add(key)
+  const newVisited = state.visited
   const newDistance = isNewTile ? state.distance + 1 : state.distance
 
   const tileSpeed = 4.0 + newDistance * 0.02
