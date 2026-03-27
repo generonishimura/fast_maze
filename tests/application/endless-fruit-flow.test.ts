@@ -26,7 +26,7 @@ describe('endless mode - 果物統合', () => {
 
     // 色々な方向に進んで果物を取る
     for (let attempt = 0; attempt < 200 && !foundFruit; attempt++) {
-      if (current.status === 'game-over') {
+      if (current.status !== 'playing') {
         current = initEndless(42 + attempt)
         continue
       }
@@ -40,7 +40,7 @@ describe('endless mode - 果物統合', () => {
         foundFruit = true
       }
 
-      if (current.status === 'game-over') {
+      if (current.status !== 'playing') {
         current = initEndless(42 + attempt)
       }
     }
@@ -61,7 +61,7 @@ describe('endless mode - 果物統合', () => {
     // tick後にcollectedFruitがセットされた場合、そのキーはfruitsから消える
     let current = state
     for (let i = 0; i < 500; i++) {
-      if (current.status === 'game-over') break
+      if (current.status !== 'playing') break
       current = endlessTick(current)
       if (current.collectedFruit !== null) {
         const fruitKey = `${current.collectedFruit.row},${current.collectedFruit.col}`

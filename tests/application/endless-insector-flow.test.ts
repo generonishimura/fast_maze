@@ -34,7 +34,7 @@ describe('endlessTick - insector spawn', () => {
 
     for (let i = 0; i < 10; i++) {
       state = endlessTick(state)
-      if (state.status === 'game-over') break
+      if (state.status !== 'playing') break
     }
 
     if (state.status === 'playing') {
@@ -48,7 +48,7 @@ describe('endlessTick - insector spawn', () => {
     state = { ...state, distance: 30, insectorCooldown: 100 }
 
     state = endlessTick(state)
-    if (state.status !== 'game-over') {
+    if (state.status === 'playing') {
       expect(state.insector).toBeNull()
     }
   })
@@ -76,9 +76,33 @@ describe('endlessTick - insector collision', () => {
     // When
     const next = endlessTick(state)
 
-    // Then
+    // Then: 残機があるのでstunnedになる
+    expect(next.status).toBe('stunned')
+    expect(next.deathCause).toBe('insector')
+    expect(next.lives).toBe(2)
+  })
+
+  it('残機1（最後の1機）でインセクターに当たるとgame-over', () => {
+    let state = initEndless(42)
+    const playerPos = state.player.position
+    const playerNextPos = {
+      row: playerPos.row,
+      col: playerPos.col + 1,
+    }
+
+    if (getWorldCell(state.maze, playerNextPos.row, playerNextPos.col) !== 'passage') return
+
+    state = {
+      ...state,
+      lives: 1,
+      insector: activeInsector({ position: playerNextPos }),
+    }
+
+    const next = endlessTick(state)
+
     expect(next.status).toBe('game-over')
     expect(next.deathCause).toBe('insector')
+    expect(next.lives).toBe(0)
   })
 
   it('インセクターが移動した結果プレイヤーと同じ位置になるとgame-over（tick後判定）', () => {
@@ -106,14 +130,14 @@ describe('endlessTick - insector collision', () => {
     // When
     const next = endlessTick(state)
 
-    // Then
-    expect(next.status).toBe('game-over')
+    // Then: 残機があるのでstunnedになる
+    expect(next.status).toBe('stunned')
     expect(next.deathCause).toBe('insector')
   })
 })
 
 describe('endlessTick - swap collision', () => {
-  it('プレイヤーとインセクターがすれ違うとgame-over', () => {
+  it('プレイヤーとインセクターがすれ違うとstunned（残機あり）', () => {
     let state = initEndless(42)
 
     const playerPos = state.player.position
@@ -133,7 +157,7 @@ describe('endlessTick - swap collision', () => {
 
     const next = endlessTick(state)
 
-    expect(next.status).toBe('game-over')
+    expect(next.status).toBe('stunned')
     expect(next.deathCause).toBe('insector')
   })
 })
@@ -151,7 +175,7 @@ describe('endlessTick - insector lifecycle', () => {
     }
 
     const next = endlessTick(state)
-    if (next.status === 'game-over') return
+    if (next.status !== 'playing') return
 
     expect(next.insector).not.toBeNull()
     expect(next.insector!.status).toBe('despawning')
@@ -171,7 +195,7 @@ describe('endlessTick - insector lifecycle', () => {
     }
 
     const next = endlessTick(state)
-    if (next.status === 'game-over') return
+    if (next.status !== 'playing') return
 
     expect(next.insector).toBeNull()
     expect(next.insectorCooldown).toBeGreaterThan(0)
@@ -194,7 +218,7 @@ describe('endlessTick - insector lifecycle', () => {
 
     // When
     const next = endlessTick(state)
-    if (next.status === 'game-over') return
+    if (next.status !== 'playing') return
 
     // Then: nullになり、cooldownは0（即再スポーン可能）
     expect(next.insector).toBeNull()
@@ -203,15 +227,28 @@ describe('endlessTick - insector lifecycle', () => {
 })
 
 describe('endlessTick - wall collision regression', () => {
-  it('壁衝突時のdeathCauseがwallになる', () => {
+  it('残機0で壁衝突時のdeathCauseがwallになる', () => {
+    let state = initEndless(42)
+    state = { ...state, lives: 0 }
+
+    for (let i = 0; i < 100; i++) {
+      state = endlessTick(state)
+      if (state.status !== 'playing') break
+    }
+
+    expect(state.status).toBe('game-over')
+    expect(state.deathCause).toBe('wall')
+  })
+
+  it('残機ありで壁衝突時はstunnedでdeathCauseがwall', () => {
     let state = initEndless(42)
 
     for (let i = 0; i < 100; i++) {
       state = endlessTick(state)
-      if (state.status === 'game-over') break
+      if (state.status !== 'playing') break
     }
 
-    expect(state.status).toBe('game-over')
+    expect(state.status).toBe('stunned')
     expect(state.deathCause).toBe('wall')
   })
 })

@@ -106,6 +106,7 @@ export function initEndless(seed: number): EndlessGameState {
     streak: 0,
     visited,
     tileSpeed: 4.0,
+    lives: 3,
     status: 'playing',
     fruits,
     collectedFruit: null,
@@ -128,7 +129,11 @@ export function endlessTick(state: EndlessGameState): EndlessGameState {
   const nextPosition = moveForward(state.player)
 
   if (getWorldCell(state.maze, nextPosition.row, nextPosition.col) === 'wall') {
-    return { ...state, status: 'game-over', collectedFruit: null, deathCause: 'wall' }
+    const newLives = state.lives - 1
+    if (newLives > 0) {
+      return { ...state, status: 'stunned', lives: newLives, collectedFruit: null, deathCause: 'wall' }
+    }
+    return { ...state, status: 'game-over', lives: 0, collectedFruit: null, deathCause: 'wall' }
   }
 
   const prevMaze = state.maze
@@ -205,9 +210,11 @@ export function endlessTick(state: EndlessGameState): EndlessGameState {
           Math.floor(rng() * (INSECTOR_MAX_COOLDOWN - INSECTOR_MIN_COOLDOWN + 1))
       }
     } else {
+      const newLives = state.lives - 1
+      const insectorDeathStatus = newLives > 0 ? 'stunned' as const : 'game-over' as const
       const insectorGameOver = {
         ...state, maze, player: { ...state.player, position: nextPosition },
-        status: 'game-over' as const, deathCause: 'insector' as const,
+        status: insectorDeathStatus, lives: Math.max(0, newLives), deathCause: 'insector' as const,
         insector, insectorCooldown, collectedFruit: null,
         score: state.score + scoreGain + fruitScore,
         distance: newDistance, streak, visited: newVisited, tileSpeed, fruits,
@@ -284,5 +291,19 @@ export function handleEndlessDirectionChange(
   return {
     ...state,
     player: changeDirection(state.player, direction),
+  }
+}
+
+export function resumeFromStun(
+  state: EndlessGameState,
+  direction: Direction,
+): EndlessGameState {
+  if (state.status !== 'stunned') return state
+
+  return {
+    ...state,
+    status: 'playing',
+    player: changeDirection(state.player, direction),
+    deathCause: null,
   }
 }

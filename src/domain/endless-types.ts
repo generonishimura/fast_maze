@@ -18,7 +18,8 @@ export type EndlessGameState = {
   readonly streak: number
   readonly visited: ReadonlySet<string>
   readonly tileSpeed: number
-  readonly status: 'playing' | 'game-over'
+  readonly lives: number
+  readonly status: 'playing' | 'game-over' | 'stunned'
   readonly fruits: ReadonlyMap<string, WorldFruit>
   readonly collectedFruit: WorldFruit | null
   readonly insector: InsectorState | null
