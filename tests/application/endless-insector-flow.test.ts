@@ -162,6 +162,59 @@ describe('endlessTick - swap collision', () => {
   })
 })
 
+describe('endlessTick - insector removed on stun', () => {
+  it('インセクター衝突でスタン時、insectorがnullになる', () => {
+    // Given: seed=3ではcol+1が通路
+    let state = initEndless(3)
+    const playerPos = state.player.position
+    const playerNextPos = {
+      row: playerPos.row,
+      col: playerPos.col + 1,
+    }
+
+    // 前提条件を明示的に検証
+    expect(getWorldCell(state.maze, playerNextPos.row, playerNextPos.col)).toBe('passage')
+
+    state = {
+      ...state,
+      insector: activeInsector({ position: playerNextPos }),
+    }
+
+    // When
+    const next = endlessTick(state)
+
+    // Then: stunnedかつinsectorがnull（虫は消える）
+    expect(next.status).toBe('stunned')
+    expect(next.deathCause).toBe('insector')
+    expect(next.insector).toBeNull()
+  })
+
+  it('インセクター衝突でgame-over時はinsectorが残る', () => {
+    // Given: seed=3で残機1
+    let state = initEndless(3)
+    const playerPos = state.player.position
+    const playerNextPos = {
+      row: playerPos.row,
+      col: playerPos.col + 1,
+    }
+
+    expect(getWorldCell(state.maze, playerNextPos.row, playerNextPos.col)).toBe('passage')
+
+    state = {
+      ...state,
+      lives: 1,
+      insector: activeInsector({ position: playerNextPos }),
+    }
+
+    // When
+    const next = endlessTick(state)
+
+    // Then: game-overではinsectorは残る（死亡エフェクト用）
+    expect(next.status).toBe('game-over')
+    expect(next.insector).not.toBeNull()
+  })
+})
+
 describe('endlessTick - insector lifecycle', () => {
   it('insectorのremainingTicksが0になるとdespawningになる', () => {
     let state = initEndless(42)

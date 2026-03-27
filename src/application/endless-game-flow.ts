@@ -222,6 +222,10 @@ export function endlessTick(state: EndlessGameState): EndlessGameState {
 
       // 衝突判定1: プレイヤーの移動先 === インセクターの現在位置（tick前）
       if (insector.status === 'active' && checkInsectorCollision(nextPosition, insector.position)) {
+        // スタン時はインセクターを消す（復帰後に虫がいると不自然なため）
+        if (insectorDeathStatus === 'stunned') {
+          return { ...insectorGameOver, insector: null }
+        }
         return insectorGameOver
       }
 
@@ -235,6 +239,9 @@ export function endlessTick(state: EndlessGameState): EndlessGameState {
       } else {
         // 衝突判定2: プレイヤーの新位置 === インセクターの移動後位置
         if (insector.status === 'active' && checkInsectorCollision(nextPosition, insector.position)) {
+          if (insectorDeathStatus === 'stunned') {
+            return { ...insectorGameOver, insector: null }
+          }
           return { ...insectorGameOver, insector }
         }
 
@@ -246,6 +253,9 @@ export function endlessTick(state: EndlessGameState): EndlessGameState {
             insector.position.row === state.player.position.row &&
             insector.position.col === state.player.position.col
           ) {
+            if (insectorDeathStatus === 'stunned') {
+              return { ...insectorGameOver, insector: null }
+            }
             return { ...insectorGameOver, insector }
           }
         }
