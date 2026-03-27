@@ -1,6 +1,6 @@
 import Phaser from 'phaser'
 import { TILE_SIZE } from '@/config'
-import { initEndless, endlessTick, handleEndlessDirectionChange } from '@/application/endless-game-flow'
+import { initEndless, endlessTick, handleEndlessDirectionChange, resumeFromStun } from '@/application/endless-game-flow'
 import { moveForward } from '@/domain/player'
 import { getWorldCell } from '@/domain/endless-maze'
 import type { Direction } from '@/domain/types'
@@ -31,6 +31,9 @@ export class EndlessGameScene extends Phaser.Scene {
   private insectorRenderer: InsectorRenderer | null = null
   private prevInsectorPosition: { row: number; col: number } | null = null
   private insectorDespawning = false
+  private stunTimer = 0
+  private stunText: Phaser.GameObjects.Text | null = null
+  private hudLivesText!: Phaser.GameObjects.Text
 
   constructor() {
     super({ key: 'Endless' })
@@ -48,6 +51,8 @@ export class EndlessGameScene extends Phaser.Scene {
     this.movementProgress = 0
     this.waitingForInput = true
     this.crashAnimating = false
+    this.stunTimer = 0
+    this.stunText = null
   }
 
   create(): void {
@@ -122,6 +127,11 @@ export class EndlessGameScene extends Phaser.Scene {
     this.hudDistanceText = this.add.text(screenW - 10, 66, '0m', hudStyle)
       .setOrigin(1, 0).setDepth(200)
 
+    this.hudLivesText = this.add.text(10, 10, `LIVES ${this.gameState.lives}`, {
+      ...hudStyle,
+      color: '#e94560',
+    }).setOrigin(0, 0).setDepth(200)
+
     this.waitingText = this.add.text(screenW / 2, screenH - 60, 'Swipe or WASD to Start', {
       fontFamily: "'Share Tech Mono', monospace",
       fontSize: '18px',
@@ -131,13 +141,18 @@ export class EndlessGameScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(200)
 
     // メインカメラからHUD要素を除外（ズームの影響を受けさせない）
-    const hudElements = [this.hudModeText, this.hudScoreText, this.hudDistanceText, this.waitingText]
+    const hudElements = [this.hudModeText, this.hudScoreText, this.hudDistanceText, this.hudLivesText, this.waitingText]
     hudElements.forEach(el => cam.ignore(el))
   }
 
   update(_time: number, delta: number): void {
     if (this.crashAnimating) return
-    if (this.gameState.status !== 'playing') return
+    if (this.gameState.status === 'game-over') return
+
+    if (this.gameState.status === 'stunned') {
+      this.handleStunned(delta)
+      return
+    }
 
     if (this.waitingForInput) {
       const queuedDirection = this.getDirection()
@@ -185,6 +200,7 @@ export class EndlessGameScene extends Phaser.Scene {
       // HUD更新
       this.hudScoreText.setText(`SCORE ${this.gameState.score}`)
       this.hudDistanceText.setText(`${this.gameState.distance}m`)
+      this.hudLivesText.setText(`LIVES ${this.gameState.lives}`)
 
       if (this.gameState.status === 'game-over') {
         if (this.gameState.deathCause === 'insector') {
@@ -192,6 +208,11 @@ export class EndlessGameScene extends Phaser.Scene {
         } else {
           this.playCrashEffect()
         }
+        return
+      }
+
+      if (this.gameState.status === 'stunned') {
+        this.playStunEffect()
         return
       }
     }
@@ -262,6 +283,70 @@ export class EndlessGameScene extends Phaser.Scene {
       this.insectorRenderer.destroy()
       this.insectorRenderer = null
       this.prevInsectorPosition = null
+    }
+  }
+
+  private readonly STUN_TIMEOUT_MS = 5000
+
+  private playStunEffect(): void {
+    this.movementProgress = 0
+    this.cameras.main.shake(200, 0.01)
+
+    const pos = this.gameState.player.position
+    const wallPos = moveForward(this.gameState.player)
+    this.playerRenderer.updatePosition(pos, wallPos, 0.3, this.gameState.player.direction)
+
+    const cx = (pos.col * 0.7 + wallPos.col * 0.3) * TILE_SIZE + TILE_SIZE / 2
+    const cy = (pos.row * 0.7 + wallPos.row * 0.3) * TILE_SIZE + TILE_SIZE / 2
+    this.spawnCrashParticles(cx, cy)
+
+    // HUD更新
+    this.hudLivesText.setText(`LIVES ${this.gameState.lives}`)
+
+    // stunタイマーリセット
+    this.stunTimer = 0
+
+    // ガイドテキスト表示
+    const screenW = this.scale.width
+    const screenH = this.scale.height
+    this.stunText = this.add.text(screenW / 2, screenH - 60, 'WASD to Resume (5s)', {
+      fontFamily: "'Share Tech Mono', monospace",
+      fontSize: '18px',
+      color: '#e94560',
+      backgroundColor: 'rgba(10,10,26,0.8)',
+      padding: { x: 16, y: 8 },
+    }).setOrigin(0.5).setDepth(200)
+    this.cameras.main.ignore(this.stunText)
+  }
+
+  private handleStunned(delta: number): void {
+    this.stunTimer += delta
+
+    // カウントダウン更新
+    const remaining = Math.ceil((this.STUN_TIMEOUT_MS - this.stunTimer) / 1000)
+    if (this.stunText) {
+      this.stunText.setText(`WASD to Resume (${remaining}s)`)
+    }
+
+    const queuedDirection = this.getDirection()
+
+    if (queuedDirection !== null) {
+      this.gameState = resumeFromStun(this.gameState, queuedDirection)
+      this.destroyStunText()
+      return
+    }
+
+    if (this.stunTimer >= this.STUN_TIMEOUT_MS) {
+      // タイムアウト: 現在の方向で再開
+      this.gameState = resumeFromStun(this.gameState, this.gameState.player.direction)
+      this.destroyStunText()
+    }
+  }
+
+  private destroyStunText(): void {
+    if (this.stunText) {
+      this.stunText.destroy()
+      this.stunText = null
     }
   }
 
@@ -349,9 +434,11 @@ export class EndlessGameScene extends Phaser.Scene {
     this.swipeHandler.destroy()
     this.cameraTarget.destroy()
     if (this.waitingText?.active) this.waitingText.destroy()
+    this.destroyStunText()
     this.hudScoreText.destroy()
     this.hudDistanceText.destroy()
     this.hudModeText.destroy()
+    this.hudLivesText.destroy()
     this.cameras.remove(this.hudCamera)
   }
 }

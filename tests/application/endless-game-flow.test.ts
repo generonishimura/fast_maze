@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { initEndless, endlessTick, handleEndlessDirectionChange } from '@/application/endless-game-flow'
+import { initEndless, endlessTick, handleEndlessDirectionChange, resumeFromStun } from '@/application/endless-game-flow'
 import { getWorldCell, ensureChunksAround, ensureChunkAt, CHUNK_INNER_SIZE } from '@/domain/endless-maze'
 
 describe('initEndless', () => {
@@ -15,6 +15,11 @@ describe('initEndless', () => {
     const cell = getWorldCell(state.maze, state.player.position.row, state.player.position.col)
     expect(cell).toBe('passage')
   })
+
+  it('初期残機が3である', () => {
+    const state = initEndless(42)
+    expect(state.lives).toBe(3)
+  })
 })
 
 describe('endlessTick', () => {
@@ -22,7 +27,7 @@ describe('endlessTick', () => {
     let state = initEndless(42)
 
     const next = endlessTick(state)
-    if (next.status !== 'game-over') {
+    if (next.status === 'playing') {
       expect(next.score).toBeGreaterThan(0)
       expect(next.distance).toBe(1)
       expect(next.streak).toBe(1)
@@ -34,28 +39,96 @@ describe('endlessTick', () => {
 
     // 右に1歩
     state = endlessTick(state)
-    if (state.status === 'game-over') return
+    if (state.status !== 'playing') return
     const scoreAfterFirst = state.score
 
     // 左を向いて戻る
     state = handleEndlessDirectionChange(state, 'left')
     state = endlessTick(state)
-    if (state.status === 'game-over') return
+    if (state.status !== 'playing') return
 
     // 戻ったマスは訪問済みなのでスコア変わらず
     expect(state.score).toBe(scoreAfterFirst)
     expect(state.streak).toBe(0)
   })
 
-  it('壁に当たるとgame-overになる', () => {
+  it('壁に当たるとgame-overになる（残機1＝最後の1機）', () => {
     let state = initEndless(42)
+    state = { ...state, lives: 1 }
+
+    for (let i = 0; i < 100; i++) {
+      state = endlessTick(state)
+      if (state.status !== 'playing') break
+    }
+
+    expect(state.status).toBe('game-over')
+    expect(state.lives).toBe(0)
+  })
+
+  it('壁に当たっても残機があればstunnedになる', () => {
+    let state = initEndless(42)
+    expect(state.lives).toBe(3)
+
+    for (let i = 0; i < 100; i++) {
+      state = endlessTick(state)
+      if (state.status !== 'playing') break
+    }
+
+    expect(state.status).toBe('stunned')
+    expect(state.lives).toBe(2) // 3 → 2
+    expect(state.deathCause).toBe('wall')
+  })
+
+  it('stunned状態ではtickしても状態が変わらない', () => {
+    let state = initEndless(42)
+
+    // stunnedになるまで進む
+    for (let i = 0; i < 100; i++) {
+      state = endlessTick(state)
+      if (state.status === 'stunned') break
+    }
+    expect(state.status).toBe('stunned')
+
+    const stunnedState = state
+    const afterTick = endlessTick(stunnedState)
+    expect(afterTick).toBe(stunnedState)
+  })
+})
+
+describe('resumeFromStun', () => {
+  it('stunned状態から方向を指定して再開できる', () => {
+    let state = initEndless(42)
+
+    // stunnedになるまで進む
+    for (let i = 0; i < 100; i++) {
+      state = endlessTick(state)
+      if (state.status === 'stunned') break
+    }
+    expect(state.status).toBe('stunned')
+
+    const resumed = resumeFromStun(state, 'down')
+    expect(resumed.status).toBe('playing')
+    expect(resumed.player.direction).toBe('down')
+    expect(resumed.deathCause).toBeNull()
+  })
+
+  it('playing状態では何もしない', () => {
+    const state = initEndless(42)
+    const result = resumeFromStun(state, 'down')
+    expect(result).toBe(state)
+  })
+
+  it('残機が0でgame-overの状態では何もしない', () => {
+    let state = initEndless(42)
+    state = { ...state, lives: 0 }
 
     for (let i = 0; i < 100; i++) {
       state = endlessTick(state)
       if (state.status === 'game-over') break
     }
 
-    expect(state.status).toBe('game-over')
+    const result = resumeFromStun(state, 'down')
+    expect(result).toBe(state)
   })
 })
 
@@ -73,11 +146,11 @@ describe('endlessTick - パフォーマンス最適化', () => {
 
     // 1歩進む（同一チャンク内）
     const next = endlessTick(state)
-    if (next.status === 'game-over') return
+    if (next.status !== 'playing') return
 
     // もう1歩（まだ同一チャンク内のはず）
     const next2 = endlessTick(next)
-    if (next2.status === 'game-over') return
+    if (next2.status !== 'playing') return
 
     // 果物を取得していなければ、fruitsは同じインスタンスであるべき
     if (next2.collectedFruit === null && next.maze === next2.maze) {
@@ -129,7 +202,7 @@ describe('endlessTick - パフォーマンス最適化', () => {
 
     // tickで1歩進む → ensureChunksAroundがチャンク(3 or 4, 0)中心で実行される
     const result = endlessTick(farState)
-    if (result.status === 'game-over') return
+    if (result.status !== 'playing') return
 
     // プレイヤーの位置のチャンク座標
     const resultCx = Math.floor(result.player.position.col / CHUNK_INNER_SIZE)
