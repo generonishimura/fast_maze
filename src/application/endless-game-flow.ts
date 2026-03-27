@@ -9,6 +9,10 @@ function posKey(row: number, col: number): string {
   return `${row},${col}`
 }
 
+function chunkKey(cx: number, cy: number): string {
+  return `${cx},${cy}`
+}
+
 function generateFruitsForAllChunks(
   maze: { chunks: ReadonlyMap<string, import('@/domain/types').CellType[][]>; seed: number },
 ): Map<string, WorldFruit> {
@@ -115,11 +119,8 @@ export function endlessTick(state: EndlessGameState): EndlessGameState {
     return { ...state, status: 'game-over', collectedFruit: null }
   }
 
-  const prevChunkKeys = new Set(state.maze.chunks.keys())
-  const maze = ensureChunksAround(state.maze, nextPosition.row, nextPosition.col)
-
-  // 新チャンクの果物を生成
-  const fruits = generateFruitsForNewChunks(maze, state.fruits, prevChunkKeys)
+  const prevMaze = state.maze
+  const maze = ensureChunksAround(prevMaze, nextPosition.row, nextPosition.col)
 
   const key = posKey(nextPosition.row, nextPosition.col)
   const isNewTile = !state.visited.has(key)
@@ -129,15 +130,46 @@ export function endlessTick(state: EndlessGameState): EndlessGameState {
     streak: state.streak,
   })
 
-  // 果物の取得判定
-  const collectedFruit = fruits.get(key) ?? null
+  // #4: mazeが変わった場合のみフルーツ生成・プルーニング（Set生成排除）
+  // #5: プルーニングされたチャンクのフルーツも削除
+  const mazeChanged = maze !== prevMaze
+  const collectedFruit = state.fruits.get(key) ?? null
+
+  let fruits: ReadonlyMap<string, WorldFruit>
+  if (!mazeChanged && !collectedFruit) {
+    // チャンク変更なし＆果物取得なし → fruitsはそのまま
+    fruits = state.fruits
+  } else {
+    let mutableFruits: Map<string, WorldFruit>
+    if (mazeChanged) {
+      const prevChunkKeys = new Set(prevMaze.chunks.keys())
+      mutableFruits = generateFruitsForNewChunks(maze, state.fruits, prevChunkKeys)
+
+      // プルーニングされたチャンクのフルーツを削除
+      for (const [k, fruit] of mutableFruits) {
+        const cx = Math.floor(fruit.col / CHUNK_INNER_SIZE)
+        const cy = Math.floor(fruit.row / CHUNK_INNER_SIZE)
+        if (!maze.chunks.has(chunkKey(cx, cy))) {
+          mutableFruits.delete(k)
+        }
+      }
+    } else {
+      mutableFruits = new Map(state.fruits)
+    }
+
+    if (collectedFruit) {
+      mutableFruits.delete(key)
+    }
+    fruits = mutableFruits
+  }
+
   let fruitScore = 0
   if (collectedFruit) {
     fruitScore = getFruitScore(collectedFruit.type)
-    fruits.delete(key)
   }
 
-  const newVisited = isNewTile ? new Set(state.visited).add(key) : state.visited
+  if (isNewTile) (state.visited as Set<string>).add(key)
+  const newVisited = state.visited
   const newDistance = isNewTile ? state.distance + 1 : state.distance
 
   const tileSpeed = 4.0 + newDistance * 0.02
