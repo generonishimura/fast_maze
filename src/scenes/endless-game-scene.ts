@@ -8,6 +8,7 @@ import type { EndlessGameState } from '@/domain/endless-types'
 import { EndlessMazeRenderer } from '@/infrastructure/endless-maze-renderer'
 import { PlayerRenderer } from '@/infrastructure/phaser-player-renderer'
 import { FruitRenderer } from '@/infrastructure/fruit-renderer'
+import { InsectorRenderer } from '@/infrastructure/insector-renderer'
 import { InputHandler } from '@/infrastructure/phaser-input-handler'
 import { SwipeHandler } from '@/infrastructure/swipe-handler'
 
@@ -27,6 +28,9 @@ export class EndlessGameScene extends Phaser.Scene {
   private hudModeText!: Phaser.GameObjects.Text
   private hudCamera!: Phaser.Cameras.Scene2D.Camera
   private cameraTarget!: Phaser.GameObjects.Rectangle
+  private insectorRenderer: InsectorRenderer | null = null
+  private prevInsectorPosition: { row: number; col: number } | null = null
+  private insectorDespawning = false
 
   constructor() {
     super({ key: 'Endless' })
@@ -175,12 +179,19 @@ export class EndlessGameScene extends Phaser.Scene {
       }
       this.fruitRenderer.syncFruits(this.gameState.fruits)
 
+      // インセクター描画管理
+      this.updateInsector()
+
       // HUD更新
       this.hudScoreText.setText(`SCORE ${this.gameState.score}`)
       this.hudDistanceText.setText(`${this.gameState.distance}m`)
 
       if (this.gameState.status === 'game-over') {
-        this.playCrashEffect()
+        if (this.gameState.deathCause === 'insector') {
+          this.playInsectorDeathEffect()
+        } else {
+          this.playCrashEffect()
+        }
         return
       }
     }
@@ -196,6 +207,20 @@ export class EndlessGameScene extends Phaser.Scene {
 
     this.playerRenderer.updatePosition(currentPos, nextPos, maxProgress, this.gameState.player.direction)
 
+    // インセクターの視覚位置を更新
+    if (this.insectorRenderer && this.gameState.insector && this.gameState.insector.status === 'active') {
+      const ins = this.gameState.insector
+      if (ins.moved && this.prevInsectorPosition) {
+        // 移動した場合: 前の位置から現在の位置へ補間
+        this.insectorRenderer.updatePosition(
+          this.prevInsectorPosition, ins.position, this.movementProgress, ins.direction,
+        )
+      } else {
+        // 移動していない場合: 現在位置に留まる
+        this.insectorRenderer.updatePosition(ins.position, ins.position, 0, ins.direction)
+      }
+    }
+
     // カメラ追従ターゲットを視覚位置に移動
     const visualCol = currentPos.col + (nextPos.col - currentPos.col) * maxProgress
     const visualRow = currentPos.row + (nextPos.row - currentPos.row) * maxProgress
@@ -203,6 +228,66 @@ export class EndlessGameScene extends Phaser.Scene {
       visualCol * TILE_SIZE + TILE_SIZE / 2,
       visualRow * TILE_SIZE + TILE_SIZE / 2,
     )
+  }
+
+  private updateInsector(): void {
+    const insector = this.gameState.insector
+
+    if (insector && !this.insectorRenderer && insector.status === 'spawning') {
+      // 新規スポーン
+      this.insectorRenderer = new InsectorRenderer(this, TILE_SIZE, this.hudCamera)
+      this.insectorRenderer.spawn(insector.position)
+      this.prevInsectorPosition = insector.position
+      this.insectorDespawning = false
+    }
+
+    if (insector && insector.status === 'active' && this.insectorRenderer) {
+      // 移動した場合は前の位置を更新
+      if (insector.moved && this.prevInsectorPosition) {
+        this.prevInsectorPosition = insector.position
+      }
+    }
+
+    if (insector && insector.status === 'despawning' && this.insectorRenderer && !this.insectorDespawning) {
+      this.insectorDespawning = true
+      this.insectorRenderer.despawn(() => {
+        this.insectorRenderer?.destroy()
+        this.insectorRenderer = null
+        this.prevInsectorPosition = null
+        this.insectorDespawning = false
+      })
+    }
+
+    if (!insector && this.insectorRenderer && !this.insectorDespawning) {
+      this.insectorRenderer.destroy()
+      this.insectorRenderer = null
+      this.prevInsectorPosition = null
+    }
+  }
+
+  private playInsectorDeathEffect(): void {
+    this.crashAnimating = true
+
+    const playerPos = this.gameState.player.position
+    const px = playerPos.col * TILE_SIZE + TILE_SIZE / 2
+    const py = playerPos.row * TILE_SIZE + TILE_SIZE / 2
+
+    this.cameras.main.shake(400, 0.02)
+
+    // 赤いパーティクル
+    this.spawnCrashParticles(px, py)
+
+    this.time.delayedCall(600, () => {
+      this.cameras.main.fadeOut(500, 0, 0, 0)
+      this.cameras.main.once('camerafadeoutcomplete', () => {
+        this.cleanup()
+        this.scene.start('GameOver', {
+          score: this.gameState.score,
+          stage: 0,
+          mode: 'endless',
+        })
+      })
+    })
   }
 
   private playCrashEffect(): void {
@@ -258,6 +343,8 @@ export class EndlessGameScene extends Phaser.Scene {
     this.mazeRenderer.destroy()
     this.playerRenderer.destroy()
     this.fruitRenderer.destroy()
+    this.insectorRenderer?.destroy()
+    this.insectorRenderer = null
     this.inputHandler.destroy()
     this.swipeHandler.destroy()
     this.cameraTarget.destroy()

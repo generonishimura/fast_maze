@@ -4,6 +4,8 @@ import { createEndlessMaze, getWorldCell, ensureChunksAround, ensureChunkAt, CHU
 import { moveForward, changeDirection } from '@/domain/player'
 import { calculateEndlessScore } from '@/domain/endless-score'
 import { generateFruitsForChunk, getFruitScore } from '@/domain/fruit'
+import { createInsector, insectorTick, checkInsectorCollision, findSpawnPosition } from '@/domain/insector'
+import { createRng } from '@/utils/random'
 
 function posKey(row: number, col: number): string {
   return `${row},${col}`
@@ -107,8 +109,18 @@ export function initEndless(seed: number): EndlessGameState {
     status: 'playing',
     fruits,
     collectedFruit: null,
+    insector: null,
+    insectorCooldown: 8,
+    deathCause: null,
   }
 }
+
+const INSECTOR_MIN_DISTANCE = 15
+const INSECTOR_SPAWN_CHANCE = 0.8
+const INSECTOR_MIN_DURATION_TICKS = 8
+const INSECTOR_MAX_DURATION_TICKS = 20
+const INSECTOR_MIN_COOLDOWN = 5
+const INSECTOR_MAX_COOLDOWN = 15
 
 export function endlessTick(state: EndlessGameState): EndlessGameState {
   if (state.status !== 'playing') return state
@@ -116,7 +128,7 @@ export function endlessTick(state: EndlessGameState): EndlessGameState {
   const nextPosition = moveForward(state.player)
 
   if (getWorldCell(state.maze, nextPosition.row, nextPosition.col) === 'wall') {
-    return { ...state, status: 'game-over', collectedFruit: null }
+    return { ...state, status: 'game-over', collectedFruit: null, deathCause: 'wall' }
   }
 
   const prevMaze = state.maze
@@ -174,6 +186,77 @@ export function endlessTick(state: EndlessGameState): EndlessGameState {
 
   const tileSpeed = 4.0 + newDistance * 0.02
 
+  // --- インセクターロジック ---
+  const prevInsector = state.insector
+  let insector = prevInsector
+  let insectorCooldown = state.insectorCooldown > 0 ? state.insectorCooldown - 1 : 0
+
+  if (insector !== null) {
+    if (insector.status === 'despawning') {
+      // despawning → 次のtickで削除
+      const wasUnreachable = insector.unreachable
+      insector = null
+      if (wasUnreachable) {
+        // 到達不可能だった → cooldown 0で即再スポーン可能
+        insectorCooldown = 0
+      } else {
+        const rng = createRng(state.maze.seed + newDistance)
+        insectorCooldown = INSECTOR_MIN_COOLDOWN +
+          Math.floor(rng() * (INSECTOR_MAX_COOLDOWN - INSECTOR_MIN_COOLDOWN + 1))
+      }
+    } else {
+      const insectorGameOver = {
+        ...state, maze, player: { ...state.player, position: nextPosition },
+        status: 'game-over' as const, deathCause: 'insector' as const,
+        insector, insectorCooldown, collectedFruit: null,
+        score: state.score + scoreGain + fruitScore,
+        distance: newDistance, streak, visited: newVisited, tileSpeed, fruits,
+      }
+
+      // 衝突判定1: プレイヤーの移動先 === インセクターの現在位置（tick前）
+      if (insector.status === 'active' && checkInsectorCollision(nextPosition, insector.position)) {
+        return insectorGameOver
+      }
+
+      const insectorBefore = insector
+      // insectorTick実行
+      insector = insectorTick(insector, maze, nextPosition)
+
+      // 到達不可能 → 即despawnして次のtickで再スポーン
+      if (insector.unreachable) {
+        insector = { ...insector, status: 'despawning' }
+      } else {
+        // 衝突判定2: プレイヤーの新位置 === インセクターの移動後位置
+        if (insector.status === 'active' && checkInsectorCollision(nextPosition, insector.position)) {
+          return { ...insectorGameOver, insector }
+        }
+
+        // すれ違い衝突: プレイヤーとインセクターが互いの位置を入れ替えた
+        if (insectorBefore.status === 'active' && insector.moved) {
+          if (
+            nextPosition.row === insectorBefore.position.row &&
+            nextPosition.col === insectorBefore.position.col &&
+            insector.position.row === state.player.position.row &&
+            insector.position.col === state.player.position.col
+          ) {
+            return { ...insectorGameOver, insector }
+          }
+        }
+      }
+    }
+  } else if (insectorCooldown <= 0 && newDistance >= INSECTOR_MIN_DISTANCE) {
+    // スポーン判定
+    const rng = createRng(state.maze.seed + newDistance)
+    if (rng() < INSECTOR_SPAWN_CHANCE) {
+      const spawnPos = findSpawnPosition(maze, nextPosition, rng)
+      if (spawnPos !== null) {
+        const durationTicks = INSECTOR_MIN_DURATION_TICKS +
+          Math.floor(rng() * (INSECTOR_MAX_DURATION_TICKS - INSECTOR_MIN_DURATION_TICKS + 1))
+        insector = createInsector(spawnPos, 'right', durationTicks)
+      }
+    }
+  }
+
   return {
     ...state,
     maze,
@@ -186,6 +269,9 @@ export function endlessTick(state: EndlessGameState): EndlessGameState {
     status: 'playing',
     fruits,
     collectedFruit,
+    insector,
+    insectorCooldown,
+    deathCause: null,
   }
 }
 
