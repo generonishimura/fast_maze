@@ -3,7 +3,7 @@ import { createEndlessMaze, ensureChunksAround, getWorldCell } from '@/domain/en
 
 describe('generateSpawnPositions', () => {
   const seed = 12345
-  const maze = ensureChunksAround(createEndlessMaze(seed), 0, 0, 3)
+  const maze = ensureChunksAround(createEndlessMaze(seed), 0, 0)
 
   it('64箇所のスポーン位置を生成する', () => {
     // When
@@ -65,7 +65,7 @@ describe('generateSpawnPositions', () => {
   })
 
   it('異なるシードなら異なるスポーン位置を返す', () => {
-    const maze2 = ensureChunksAround(createEndlessMaze(99999), 0, 0, 3)
+    const maze2 = ensureChunksAround(createEndlessMaze(99999), 0, 0)
 
     // When
     const spawns1 = generateSpawnPositions(maze, seed, 64)

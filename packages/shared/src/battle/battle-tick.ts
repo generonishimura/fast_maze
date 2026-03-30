@@ -1,11 +1,11 @@
-import type { Direction, Position } from '@/domain/types'
+import type { Direction, Position, CellType } from '@/domain/types'
 import type { BattleGameState, BattlePlayerState } from '@/battle/types'
-import { createEndlessMaze, ensureChunksAround, getWorldCell } from '@/domain/endless-maze'
-import { moveForward, changeDirection } from '@/domain/player'
+import { createEndlessMaze, ensureChunksAround, getWorldCell, CHUNK_INNER_SIZE, type EndlessMazeState } from '@/domain/endless-maze'
+import { moveForward } from '@/domain/player'
 import { resolveCollisions } from '@/battle/player-collision'
 import { generateSpawnPositions } from '@/battle/spawn'
 import { generateFruitsForChunk, getFruitScore } from '@/domain/fruit'
-import { calculateEndlessScore } from '@/domain/endless-score'
+
 
 export const BATTLE_TILE_SPEED = 4.0
 export const INVINCIBLE_TICKS = 60 // 3秒 (20Hz server tick)
@@ -16,7 +16,7 @@ function posKey(row: number, col: number): string {
 
 export function initBattle(seed: number, playerIds: string[]): BattleGameState {
   let maze = createEndlessMaze(seed)
-  maze = ensureChunksAround(maze, 0, 0, 3)
+  maze = ensureChunksAround(maze, 0, 0)
 
   const spawns = generateSpawnPositions(maze, seed, playerIds.length)
 
@@ -80,7 +80,7 @@ export function battleTick(
     const nextPos = moveForward({ position: playerState.position, direction: playerState.direction })
 
     // チャンク確保
-    maze = ensureChunksAround(maze, nextPos.row, nextPos.col, 2)
+    maze = ensureChunksAround(maze, nextPos.row, nextPos.col)
 
     // 壁衝突チェック
     if (getWorldCell(maze, nextPos.row, nextPos.col) === 'wall') {
@@ -177,18 +177,17 @@ export function battleTick(
 }
 
 function findFruitAtPosition(
-  maze: { readonly seed: number; readonly chunks: ReadonlyMap<string, unknown> },
+  maze: Pick<EndlessMazeState, 'seed' | 'chunks'>,
   pos: Position,
 ): { score: number } | null {
   // チャンク座標を計算
-  const CHUNK_INNER_SIZE = 20
   const cx = Math.floor(pos.row / CHUNK_INNER_SIZE)
   const cy = Math.floor(pos.col / CHUNK_INNER_SIZE)
   const localRow = ((pos.row % CHUNK_INNER_SIZE) + CHUNK_INNER_SIZE) % CHUNK_INNER_SIZE
   const localCol = ((pos.col % CHUNK_INNER_SIZE) + CHUNK_INNER_SIZE) % CHUNK_INNER_SIZE
 
   const chunkKey = `${cx},${cy}`
-  const chunk = maze.chunks.get(chunkKey) as import('@/domain/types').CellType[][] | undefined
+  const chunk = maze.chunks.get(chunkKey) as CellType[][] | undefined
   if (!chunk) return null
 
   const fruits = generateFruitsForChunk(maze.seed, cx, cy, chunk)
