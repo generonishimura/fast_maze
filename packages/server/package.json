@@ -1,0 +1,20 @@
+{
+  "name": "@fast-maze/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@colyseus/core": "^0.17.0",
+    "@colyseus/ws-transport": "^0.17.0",
+    "colyseus": "^0.17.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.7.0"
+  }
+}
