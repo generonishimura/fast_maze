@@ -44,6 +44,7 @@ export class BattleGameScene extends Phaser.Scene {
 
   private localPlayerId!: string
   private localPosition = { row: 0, col: 0 }
+  private lastChunkUpdatePos = { row: -999, col: -999 }
   private localDirection: Direction = 'right'
   private localScore = 0
   private localStatus = 'invincible'
@@ -199,9 +200,13 @@ export class BattleGameScene extends Phaser.Scene {
     // 補間（サーバーtickは20Hz、クライアントは60fps）
     this.interpolation = Math.min(this.interpolation + delta / 50, 1.0)
 
-    // 迷路チャンク更新
-    this.maze = ensureChunksAround(this.maze, this.localPosition.row, this.localPosition.col)
-    this.mazeRenderer.renderChunksAround(this.maze, this.localPosition.row, this.localPosition.col)
+    // 迷路チャンク更新（位置が変わった時のみ）
+    const pos = this.localPosition
+    if (pos.row !== this.lastChunkUpdatePos.row || pos.col !== this.lastChunkUpdatePos.col) {
+      this.maze = ensureChunksAround(this.maze, pos.row, pos.col)
+      this.mazeRenderer.renderChunksAround(this.maze, pos.row, pos.col)
+      this.lastChunkUpdatePos = { row: pos.row, col: pos.col }
+    }
 
     // ローカルプレイヤー描画
     this.playerRenderer.updatePosition(

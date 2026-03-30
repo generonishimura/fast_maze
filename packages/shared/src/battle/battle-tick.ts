@@ -6,9 +6,9 @@ import { resolveCollisions } from '@/battle/player-collision'
 import { generateSpawnPositions } from '@/battle/spawn'
 import { generateFruitsForChunk, getFruitScore } from '@/domain/fruit'
 
-
-export const BATTLE_TILE_SPEED = 4.0
+export const BATTLE_TILE_SPEED = 4.0 // tiles per second
 export const INVINCIBLE_TICKS = 60 // 3秒 (20Hz server tick)
+const SERVER_TICK_MS = 50 // 20Hz
 
 function posKey(row: number, col: number): string {
   return `${row},${col}`
@@ -41,6 +41,7 @@ export function initBattle(seed: number, playerIds: string[]): BattleGameState {
     collectedFruits: new Set<string>(),
     phase: 'playing',
     tickCount: 0,
+    movementProgress: 0,
     eliminationOrder: [],
   }
 }
@@ -52,13 +53,45 @@ export function battleTick(
   if (state.phase !== 'playing') return state
 
   const newTickCount = state.tickCount + 1
+
+  // 方向入力は常に受け付ける（移動タイミングに関係なく）
+  let playersWithInput = new Map<string, BattlePlayerState>()
+  for (const [id, player] of state.players) {
+    const inputDir = inputs.get(id)
+    if (inputDir && player.status !== 'eliminated') {
+      playersWithInput.set(id, { ...player, direction: inputDir })
+    } else {
+      playersWithInput.set(id, player)
+    }
+  }
+
+  // 移動アキュムレーター: 4.0 tiles/sec × 50ms/tick = 0.2 per tick
+  const newProgress = state.movementProgress + (BATTLE_TILE_SPEED * SERVER_TICK_MS) / 1000
+
+  // まだ1タイル分に達していない → 方向更新 + 終了判定のみ
+  if (newProgress < 1.0) {
+    const aliveNow = [...playersWithInput.values()].filter(
+      p => p.status === 'alive' || p.status === 'invincible'
+    ).length
+    const phaseNow = (aliveNow <= 1 && playersWithInput.size > 1) ? 'finished' as const : state.phase
+
+    return {
+      ...state,
+      players: playersWithInput,
+      phase: phaseNow,
+      tickCount: newTickCount,
+      movementProgress: newProgress,
+    }
+  }
+
+  // 1タイル移動実行
+  const remainder = newProgress - 1.0
   let maze = state.maze
   const collectedFruits = new Set(state.collectedFruits)
   const eliminationOrder = [...state.eliminationOrder]
   const updatedPlayers = new Map<string, BattlePlayerState>()
 
-  // 各プレイヤーの状態を個別に更新（visited tracking per player isn't needed for battle - just score for new tiles）
-  for (const [id, player] of state.players) {
+  for (const [id, player] of playersWithInput) {
     if (player.status === 'eliminated') {
       updatedPlayers.set(id, player)
       continue
@@ -70,14 +103,8 @@ export function battleTick(
       currentStatus = 'alive'
     }
 
-    // 方向変更
-    const inputDir = inputs.get(id)
-    let playerState = inputDir
-      ? { ...player, direction: inputDir }
-      : player
-
     // 前進
-    const nextPos = moveForward({ position: playerState.position, direction: playerState.direction })
+    const nextPos = moveForward({ position: player.position, direction: player.direction })
 
     // チャンク確保
     maze = ensureChunksAround(maze, nextPos.row, nextPos.col)
@@ -85,13 +112,11 @@ export function battleTick(
     // 壁衝突チェック
     if (getWorldCell(maze, nextPos.row, nextPos.col) === 'wall') {
       if (currentStatus === 'invincible') {
-        // invincible中は壁で止まる（位置変わらず）
-        updatedPlayers.set(id, { ...playerState, status: currentStatus })
+        updatedPlayers.set(id, { ...player, status: currentStatus })
         continue
       }
-      // 脱落
       updatedPlayers.set(id, {
-        ...playerState,
+        ...player,
         status: 'eliminated',
         eliminatedBy: 'wall',
         rank: null,
@@ -101,15 +126,11 @@ export function battleTick(
     }
 
     // 移動成功
-    let score = playerState.score
-
-    // 新タイルによるスコア加算（簡易版: 毎tick10点）
-    score += 10
+    let score = player.score + 10
 
     // フルーツ収集
     const fruitKey = posKey(nextPos.row, nextPos.col)
     if (!collectedFruits.has(fruitKey)) {
-      // チャンク内のフルーツを確認
       const fruit = findFruitAtPosition(maze, nextPos)
       if (fruit) {
         score += fruit.score
@@ -118,7 +139,7 @@ export function battleTick(
     }
 
     updatedPlayers.set(id, {
-      ...playerState,
+      ...player,
       position: nextPos,
       score,
       status: currentStatus,
@@ -148,14 +169,12 @@ export function battleTick(
   const totalPlayers = updatedPlayers.size
   const phase = (aliveCount <= 1 && totalPlayers > 1) ? 'finished' : 'playing'
 
-  // 勝者にランクを付ける
   if (phase === 'finished') {
     for (const [id, player] of updatedPlayers) {
       if (player.status === 'alive' || player.status === 'invincible') {
         updatedPlayers.set(id, { ...player, rank: 1 })
       }
     }
-    // 脱落者のランク付け（後に脱落した方がランクが高い）
     for (let i = 0; i < eliminationOrder.length; i++) {
       const pid = eliminationOrder[i]
       const p = updatedPlayers.get(pid)!
@@ -172,6 +191,7 @@ export function battleTick(
     collectedFruits,
     phase,
     tickCount: newTickCount,
+    movementProgress: remainder,
     eliminationOrder,
   }
 }
@@ -180,7 +200,6 @@ function findFruitAtPosition(
   maze: Pick<EndlessMazeState, 'seed' | 'chunks'>,
   pos: Position,
 ): { score: number } | null {
-  // チャンク座標を計算
   const cx = Math.floor(pos.row / CHUNK_INNER_SIZE)
   const cy = Math.floor(pos.col / CHUNK_INNER_SIZE)
   const localRow = ((pos.row % CHUNK_INNER_SIZE) + CHUNK_INNER_SIZE) % CHUNK_INNER_SIZE

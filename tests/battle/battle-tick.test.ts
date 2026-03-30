@@ -68,10 +68,13 @@ describe('battleTick', () => {
     }
     expect(passageDir).not.toBeNull()
 
-    // When
-    const inputs = new Map<string, Direction>([[  'p1', passageDir!]])
-    const next = battleTick(state, inputs)
-    const moved = getPlayer(next, 'p1')
+    // When: 5tick回す（4.0 tiles/sec × 50ms = 0.2/tick、5tickで1.0）
+    const inputs = new Map<string, Direction>([['p1', passageDir!]])
+    let current = state
+    for (let i = 0; i < 5; i++) {
+      current = battleTick(current, inputs)
+    }
+    const moved = getPlayer(current, 'p1')
 
     // Then: 位置が変わっている
     expect(

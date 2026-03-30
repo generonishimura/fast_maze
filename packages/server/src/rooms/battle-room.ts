@@ -5,7 +5,7 @@ import type { BattleGameState } from "@/battle/types"
 import type { Direction } from "@/domain/types"
 
 const MAX_PLAYERS = 64
-const MIN_PLAYERS = 2
+const MIN_PLAYERS = 1
 const LOBBY_TIMEOUT_MS = 30_000
 const COUNTDOWN_TICKS = 60 // 3秒 @ 20Hz
 const SERVER_TICK_RATE_MS = 50 // 20Hz

@@ -20,6 +20,7 @@ export type BattleGameState = {
   readonly collectedFruits: ReadonlySet<string>
   readonly phase: BattlePhase
   readonly tickCount: number
+  readonly movementProgress: number
   readonly eliminationOrder: readonly string[]
 }
 
