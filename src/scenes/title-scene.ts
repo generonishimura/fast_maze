@@ -50,9 +50,10 @@ export class TitleScene extends Phaser.Scene {
     })
 
     // モード選択メニュー
-    const modes: { label: string; mode: 'normal' | 'endless' }[] = [
+    const modes: { label: string; mode: 'normal' | 'endless' | 'battle' }[] = [
       { label: 'STAGE MODE', mode: 'normal' },
       { label: 'ENDLESS MODE', mode: 'endless' },
+      { label: 'BATTLE MODE', mode: 'battle' },
     ]
 
     const menuStyle = {
@@ -128,7 +129,7 @@ export class TitleScene extends Phaser.Scene {
 
   private transitioning = false
 
-  private startMode(mode: 'normal' | 'endless'): void {
+  private startMode(mode: 'normal' | 'endless' | 'battle'): void {
     if (this.transitioning) return
     this.transitioning = true
 
@@ -138,7 +139,9 @@ export class TitleScene extends Phaser.Scene {
 
     this.cameras.main.fadeOut(300, 0, 0, 0)
     this.cameras.main.once('camerafadeoutcomplete', () => {
-      if (mode === 'endless') {
+      if (mode === 'battle') {
+        this.scene.start('BattleLobby')
+      } else if (mode === 'endless') {
         this.scene.start('Endless')
       } else {
         this.scene.start('Game', { stageNumber: 1, score: 0 })
