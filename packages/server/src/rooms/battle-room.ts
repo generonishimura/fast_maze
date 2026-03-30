@@ -43,6 +43,11 @@ export class BattleRoom extends Room<{ state: BattleRoomState }> {
   }
 
   onJoin(client: Client) {
+    // ゲーム進行中は入室拒否
+    if (this.state.phase !== "lobby") {
+      throw new Error("Game already in progress")
+    }
+
     const player = new PlayerSchema()
     player.id = client.sessionId
     player.row = 0

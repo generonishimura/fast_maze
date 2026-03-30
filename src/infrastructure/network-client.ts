@@ -41,7 +41,7 @@ export class NetworkClient {
   private callbacks: BattleCallbacks = {}
 
   constructor(serverUrl?: string) {
-    const url = serverUrl ?? DEFAULT_SERVER_URL
+    const url = serverUrl ?? import.meta.env.VITE_SERVER_URL ?? DEFAULT_SERVER_URL
     this.client = new ColyseusSDK(url)
   }
 

@@ -145,11 +145,17 @@ export class BattleGameScene extends Phaser.Scene {
       onStateChange: (state) => {
         if (this.gameOver) return
 
-        // プレイヤー状態を更新
+        // 補間リセット（新しいサーバー状態が来たので）
+        this.interpolation = 0
+
+        // プレイヤー状態を更新（MapSchemaはforEachでイテレート）
         this.serverPlayers.clear()
         if (state.players) {
-          for (const [id, player] of state.players) {
-            this.serverPlayers.set(id, player as ServerPlayerState)
+          const players = state.players as Map<string, ServerPlayerState>
+          if (typeof players.forEach === 'function') {
+            players.forEach((player: ServerPlayerState, id: string) => {
+              this.serverPlayers.set(id, player)
+            })
           }
         }
 
@@ -212,7 +218,7 @@ export class BattleGameScene extends Phaser.Scene {
     )
 
     // リモートプレイヤー描画
-    this.remotePlayerRenderer.updatePlayers(this.serverPlayers, this.localPlayerId, this.interpolation)
+    this.remotePlayerRenderer.updatePlayers(this.serverPlayers, this.localPlayerId, this.interpolation, this.cameras.main)
   }
 
   private showKillFeed(playerId: string, eliminatedBy: string): void {

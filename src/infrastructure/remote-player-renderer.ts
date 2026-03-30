@@ -104,12 +104,29 @@ export class RemotePlayerRenderer {
     this.tileSize = tileSize
   }
 
-  updatePlayers(players: Map<string, RemotePlayerData>, localPlayerId: string, interpolation: number) {
+  updatePlayers(players: Map<string, RemotePlayerData>, localPlayerId: string, interpolation: number, camera?: Phaser.Cameras.Scene2D.Camera) {
+    // カメラビューポートからカリング範囲を計算（タイル単位で余裕を持たせる）
+    const cullMargin = 10 * this.tileSize
+    const cam = camera ?? this.scene.cameras.main
+
     // 新しいプレイヤーを追加、既存を更新
     for (const [id, data] of players) {
       if (id === localPlayerId) continue
 
+      // カメラ外のプレイヤーはスキップ（カリング）
+      const worldX = data.col * this.tileSize
+      const worldY = data.row * this.tileSize
+      const inView = worldX >= cam.worldView.x - cullMargin
+        && worldX <= cam.worldView.right + cullMargin
+        && worldY >= cam.worldView.y - cullMargin
+        && worldY <= cam.worldView.bottom + cullMargin
+
       let sprite = this.sprites.get(id)
+      if (!inView) {
+        if (sprite) sprite.setVisible(false)
+        continue
+      }
+
       if (!sprite) {
         sprite = new RemotePlayerSprite(this.scene, data, this.tileSize)
         this.sprites.set(id, sprite)
