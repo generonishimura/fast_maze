@@ -4,7 +4,7 @@ import { getWorldCell, CHUNK_INNER_SIZE } from '@/domain/endless-maze'
 import { createRng } from '@/utils/random'
 
 export const SPAWN_SALT = 777_777
-export const MIN_SPAWN_DISTANCE = 5
+export const MIN_SPAWN_DISTANCE = 3
 
 const DIRECTIONS = [
   { dr: -1, dc: 0 },
@@ -35,9 +35,9 @@ export function generateSpawnPositions(
   const rng = createRng(seed + SPAWN_SALT)
   const spawns: Position[] = []
 
-  // 3×3チャンク領域内（チャンク -1..1）で候補を探す
-  const range = CHUNK_INNER_SIZE * 3
-  const offset = -CHUNK_INNER_SIZE
+  // 2×2チャンク領域内で近くにスポーン
+  const range = CHUNK_INNER_SIZE * 2
+  const offset = 0
 
   const maxAttempts = count * 200
 

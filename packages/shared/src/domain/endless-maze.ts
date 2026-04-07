@@ -171,11 +171,13 @@ const CHUNK_LOAD_RADIUS = 2
 /** レンダラーが描画するチャンクの半径 */
 export const CHUNK_RENDER_RADIUS = 2
 const CHUNK_KEEP_RADIUS = 3
+const MAX_CHUNKS = 200
 
 export function ensureChunksAround(
   maze: EndlessMazeState,
   worldRow: number,
   worldCol: number,
+  options?: { skipPrune?: boolean },
 ): EndlessMazeState {
   const { cx, cy } = worldToChunk(worldRow, worldCol)
 
@@ -190,12 +192,28 @@ export function ensureChunksAround(
     }
   }
 
-  // Step 4: 遠方チャンクを削除
+  // 遠方チャンクを削除（バトルモードではskipPruneで無効化）
   const toDelete: ChunkKey[] = []
-  for (const key of maze.chunks.keys()) {
-    const [kcx, kcy] = key.split(',').map(Number)
-    if (Math.abs(kcx - cx) > CHUNK_KEEP_RADIUS || Math.abs(kcy - cy) > CHUNK_KEEP_RADIUS) {
+  if (!options?.skipPrune) {
+    for (const key of maze.chunks.keys()) {
+      const [kcx, kcy] = key.split(',').map(Number)
+      if (Math.abs(kcx - cx) > CHUNK_KEEP_RADIUS || Math.abs(kcy - cy) > CHUNK_KEEP_RADIUS) {
+        toDelete.push(key)
+      }
+    }
+  }
+
+  // skipPruneでもチャンク数上限を超えたら古いものから削除
+  if (options?.skipPrune && needed.length > 0 && maze.chunks.size + needed.length > MAX_CHUNKS) {
+    const excess = maze.chunks.size + needed.length - MAX_CHUNKS
+    let count = 0
+    for (const key of maze.chunks.keys()) {
+      if (count >= excess) break
+      // 現在位置の近くは消さない
+      const [kcx, kcy] = key.split(',').map(Number)
+      if (Math.abs(kcx - cx) <= CHUNK_LOAD_RADIUS && Math.abs(kcy - cy) <= CHUNK_LOAD_RADIUS) continue
       toDelete.push(key)
+      count++
     }
   }
 

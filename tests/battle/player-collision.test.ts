@@ -9,6 +9,8 @@ function createPlayer(overrides: Partial<BattlePlayerState> & { id: string }): B
     status: 'alive',
     eliminatedBy: null,
     rank: null,
+    isBot: false,
+    invincibleUntilTick: 0,
     ...overrides,
   }
 }
@@ -29,7 +31,7 @@ describe('resolveCollisions', () => {
     expect(result.eliminated).toEqual([{ id: 'b', eliminatedBy: 'a' }])
   })
 
-  it('スコアが同点の場合は両者生存（すり抜け）', () => {
+  it('スコアが同点の場合は両者脱落', () => {
     // Given
     const players: BattlePlayerState[] = [
       createPlayer({ id: 'a', position: { row: 5, col: 5 }, score: 100 }),
@@ -40,8 +42,8 @@ describe('resolveCollisions', () => {
     const result = resolveCollisions(players)
 
     // Then
-    expect(result.survivors.sort()).toEqual(['a', 'b'])
-    expect(result.eliminated).toEqual([])
+    expect(result.survivors).toEqual([])
+    expect(result.eliminated).toHaveLength(2)
   })
 
   it('異なるタイルにいるプレイヤーは衝突しない', () => {
@@ -77,7 +79,7 @@ describe('resolveCollisions', () => {
     expect(result.eliminated.find(e => e.id === 'c')?.eliminatedBy).toBe('a')
   })
 
-  it('3人中2人が同点最高スコアの場合、同点者は生存、他は脱落', () => {
+  it('3人中2人が同点最高スコアの場合、全員脱落', () => {
     // Given
     const players: BattlePlayerState[] = [
       createPlayer({ id: 'a', position: { row: 5, col: 5 }, score: 200 }),
@@ -89,8 +91,8 @@ describe('resolveCollisions', () => {
     const result = resolveCollisions(players)
 
     // Then
-    expect(result.survivors.sort()).toEqual(['a', 'b'])
-    expect(result.eliminated).toEqual([{ id: 'c', eliminatedBy: 'a' }])
+    expect(result.survivors).toEqual([])
+    expect(result.eliminated).toHaveLength(3)
   })
 
   it('eliminated状態のプレイヤーは衝突判定に含まれない', () => {
@@ -108,8 +110,8 @@ describe('resolveCollisions', () => {
     expect(result.eliminated).toEqual([])
   })
 
-  it('invincible状態のプレイヤーは衝突で脱落しない', () => {
-    // Given
+  it('invincibleは人畜無害: aliveプレイヤーと同じタイルでも互いに影響しない', () => {
+    // Given: invincible(a)とalive(b)が同じタイル
     const players: BattlePlayerState[] = [
       createPlayer({ id: 'a', position: { row: 5, col: 5 }, score: 100, status: 'invincible' }),
       createPlayer({ id: 'b', position: { row: 5, col: 5 }, score: 200 }),
@@ -118,9 +120,40 @@ describe('resolveCollisions', () => {
     // When
     const result = resolveCollisions(players)
 
+    // Then: 両方生存（invincibleは衝突に関与しない）
+    expect(result.survivors.sort()).toEqual(['a', 'b'])
+    expect(result.eliminated).toEqual([])
+  })
+
+  it('invincible同士が同じタイルにいても衝突しない', () => {
+    // Given
+    const players: BattlePlayerState[] = [
+      createPlayer({ id: 'a', position: { row: 5, col: 5 }, score: 100, status: 'invincible' }),
+      createPlayer({ id: 'b', position: { row: 5, col: 5 }, score: 200, status: 'invincible' }),
+    ]
+
+    // When
+    const result = resolveCollisions(players)
+
     // Then
     expect(result.survivors.sort()).toEqual(['a', 'b'])
     expect(result.eliminated).toEqual([])
+  })
+
+  it('invincibleがいるタイルでもalive同士は通常通り衝突する', () => {
+    // Given: invincible(a) + alive(b, c)が同じタイル
+    const players: BattlePlayerState[] = [
+      createPlayer({ id: 'a', position: { row: 5, col: 5 }, score: 50, status: 'invincible' }),
+      createPlayer({ id: 'b', position: { row: 5, col: 5 }, score: 200 }),
+      createPlayer({ id: 'c', position: { row: 5, col: 5 }, score: 100 }),
+    ]
+
+    // When
+    const result = resolveCollisions(players)
+
+    // Then: invincibleのaは無関係に生存、alive同士はスコア勝負
+    expect(result.survivors.sort()).toEqual(['a', 'b'])
+    expect(result.eliminated).toEqual([{ id: 'c', eliminatedBy: 'b' }])
   })
 
   it('複数タイルで同時に衝突が発生する場合、それぞれ独立に解決される', () => {

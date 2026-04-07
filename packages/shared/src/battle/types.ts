@@ -6,12 +6,16 @@ export type BattlePlayerState = {
   readonly position: Position
   readonly direction: Direction
   readonly score: number
-  readonly status: 'alive' | 'eliminated' | 'invincible'
+  readonly status: 'waiting' | 'alive' | 'eliminated' | 'invincible'
   readonly eliminatedBy: string | null
   readonly rank: number | null
+  readonly isBot: boolean
+  readonly invincibleUntilTick: number
 }
 
 export type BattlePhase = 'lobby' | 'countdown' | 'playing' | 'finished'
+
+export type FruitCache = Map<string, Map<string, number>>
 
 export type BattleGameState = {
   readonly seed: number
@@ -22,6 +26,7 @@ export type BattleGameState = {
   readonly tickCount: number
   readonly movementProgress: number
   readonly eliminationOrder: readonly string[]
+  readonly fruitCache: FruitCache
 }
 
 export type EliminationResult = {
