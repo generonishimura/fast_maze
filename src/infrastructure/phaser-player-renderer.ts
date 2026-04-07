@@ -1,128 +1,10 @@
 import Phaser from 'phaser'
 import type { Direction, Position } from '@/domain/types'
+import { buildSpriteCache, DEFAULT_PALETTE } from '@/infrastructure/player-sprite-data'
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t
 }
-
-// 9x9 ドット絵（上から見た人間）
-// 0=透明, 1=肌色, 2=服, 3=髪, 4=靴, 5=襟/ベルト, 6=目
-// フレーム0=右足前, フレーム1=左足前
-const SPRITES: Record<Direction, number[][][]> = {
-  down: [
-    // フレーム0
-    [
-      [0, 0, 0, 3, 3, 3, 0, 0, 0],
-      [0, 0, 3, 3, 3, 3, 3, 0, 0],
-      [0, 0, 3, 1, 1, 1, 3, 0, 0],
-      [0, 0, 1, 6, 1, 6, 1, 0, 0],
-      [0, 1, 5, 2, 2, 2, 5, 1, 0],
-      [0, 0, 2, 2, 5, 2, 2, 1, 0],
-      [0, 1, 2, 2, 2, 2, 2, 0, 0],
-      [0, 0, 0, 2, 0, 2, 0, 0, 0],
-      [0, 0, 4, 0, 0, 0, 4, 0, 0],
-    ],
-    // フレーム1
-    [
-      [0, 0, 0, 3, 3, 3, 0, 0, 0],
-      [0, 0, 3, 3, 3, 3, 3, 0, 0],
-      [0, 0, 3, 1, 1, 1, 3, 0, 0],
-      [0, 0, 1, 6, 1, 6, 1, 0, 0],
-      [0, 1, 5, 2, 2, 2, 5, 1, 0],
-      [0, 1, 2, 2, 5, 2, 2, 0, 0],
-      [0, 0, 2, 2, 2, 2, 2, 1, 0],
-      [0, 0, 2, 0, 0, 2, 0, 0, 0],
-      [0, 0, 0, 4, 0, 4, 0, 0, 0],
-    ],
-  ],
-  up: [
-    [
-      [0, 0, 0, 3, 3, 3, 0, 0, 0],
-      [0, 0, 3, 3, 3, 3, 3, 0, 0],
-      [0, 0, 3, 3, 3, 3, 3, 0, 0],
-      [0, 0, 1, 3, 3, 3, 1, 0, 0],
-      [0, 1, 5, 2, 2, 2, 5, 1, 0],
-      [0, 0, 2, 2, 2, 2, 2, 1, 0],
-      [0, 1, 2, 2, 2, 2, 2, 0, 0],
-      [0, 0, 0, 2, 0, 2, 0, 0, 0],
-      [0, 0, 4, 0, 0, 0, 4, 0, 0],
-    ],
-    [
-      [0, 0, 0, 3, 3, 3, 0, 0, 0],
-      [0, 0, 3, 3, 3, 3, 3, 0, 0],
-      [0, 0, 3, 3, 3, 3, 3, 0, 0],
-      [0, 0, 1, 3, 3, 3, 1, 0, 0],
-      [0, 1, 5, 2, 2, 2, 5, 1, 0],
-      [0, 1, 2, 2, 2, 2, 2, 0, 0],
-      [0, 0, 2, 2, 2, 2, 2, 1, 0],
-      [0, 0, 2, 0, 0, 2, 0, 0, 0],
-      [0, 0, 0, 4, 0, 4, 0, 0, 0],
-    ],
-  ],
-  left: [
-    // フレーム0: down frame0と同じ腕パターン（奥腕row5、手前腕row6）
-    [
-      [0, 0, 3, 3, 3, 0, 0, 0, 0],
-      [0, 3, 3, 3, 3, 3, 0, 0, 0],
-      [0, 3, 6, 1, 3, 0, 0, 0, 0],
-      [0, 0, 1, 1, 1, 0, 0, 0, 0],
-      [0, 1, 5, 2, 2, 5, 1, 0, 0],
-      [0, 0, 2, 2, 5, 2, 1, 0, 0],
-      [0, 1, 2, 2, 2, 2, 0, 0, 0],
-      [0, 0, 2, 0, 0, 2, 0, 0, 0],
-      [0, 0, 4, 0, 0, 4, 0, 0, 0],
-    ],
-    // フレーム1: 腕入れ替え（手前腕row5、奥腕row6）
-    [
-      [0, 0, 3, 3, 3, 0, 0, 0, 0],
-      [0, 3, 3, 3, 3, 3, 0, 0, 0],
-      [0, 3, 6, 1, 3, 0, 0, 0, 0],
-      [0, 0, 1, 1, 1, 0, 0, 0, 0],
-      [0, 1, 5, 2, 2, 5, 1, 0, 0],
-      [0, 1, 2, 2, 5, 2, 0, 0, 0],
-      [0, 0, 2, 2, 2, 2, 1, 0, 0],
-      [0, 0, 0, 2, 2, 0, 0, 0, 0],
-      [0, 0, 0, 4, 4, 0, 0, 0, 0],
-    ],
-  ],
-  right: [
-    // フレーム0: left frame0のミラー
-    [
-      [0, 0, 0, 0, 3, 3, 3, 0, 0],
-      [0, 0, 0, 3, 3, 3, 3, 3, 0],
-      [0, 0, 0, 0, 3, 1, 6, 3, 0],
-      [0, 0, 0, 0, 1, 1, 1, 0, 0],
-      [0, 0, 1, 5, 2, 2, 5, 1, 0],
-      [0, 0, 1, 2, 5, 2, 2, 0, 0],
-      [0, 0, 0, 2, 2, 2, 2, 1, 0],
-      [0, 0, 2, 0, 0, 2, 0, 0, 0],
-      [0, 0, 4, 0, 0, 4, 0, 0, 0],
-    ],
-    // フレーム1: left frame1のミラー
-    [
-      [0, 0, 0, 0, 3, 3, 3, 0, 0],
-      [0, 0, 0, 3, 3, 3, 3, 3, 0],
-      [0, 0, 0, 0, 3, 1, 6, 3, 0],
-      [0, 0, 0, 0, 1, 1, 1, 0, 0],
-      [0, 0, 1, 5, 2, 2, 5, 1, 0],
-      [0, 0, 0, 2, 5, 2, 2, 1, 0],
-      [0, 0, 1, 2, 2, 2, 2, 0, 0],
-      [0, 0, 0, 0, 2, 2, 0, 0, 0],
-      [0, 0, 0, 0, 4, 4, 0, 0, 0],
-    ],
-  ],
-}
-
-const PALETTE: Record<number, number> = {
-  1: 0xffcc99, // 肌色（頭・腕）
-  2: 0x00d4f0, // 服（明るいシアン）
-  3: 0x6a4030, // 髪（ミディアムブラウン）
-  4: 0x4a4050, // 靴（暗いグレー紫）
-  5: 0x00a0b8, // 襟・ベルト（服の暗め）
-  6: 0x1a1a2a, // 目（暗い）
-}
-
-const SPRITE_SIZE = 9
 
 export class PlayerRenderer {
   private readonly tileSize: number
@@ -131,8 +13,7 @@ export class PlayerRenderer {
   private glow: Phaser.GameObjects.Arc | null = null
   private currentDirection: Direction
   private currentFrame = 0
-  // #1: 4方向×2フレーム=8パターンを事前キャッシュ
-  private readonly spriteCache: Map<string, Phaser.GameObjects.RenderTexture> = new Map()
+  private readonly spriteCache: Map<string, Phaser.GameObjects.RenderTexture>
 
   constructor(scene: Phaser.Scene, tileSize: number, initialDirection: Direction) {
     this.scene = scene
@@ -156,7 +37,7 @@ export class PlayerRenderer {
     })
 
     // 全スプライトパターンを事前生成
-    this.buildSpriteCache()
+    this.spriteCache = buildSpriteCache(scene, tileSize, DEFAULT_PALETTE)
 
     // ドット絵スプライト
     this.sprite = scene.add.renderTexture(0, 0, tileSize, tileSize)
@@ -164,40 +45,6 @@ export class PlayerRenderer {
       .setDepth(10)
 
     this.applySprite(initialDirection, 0)
-  }
-
-  private buildSpriteCache(): void {
-    const directions: Direction[] = ['up', 'down', 'left', 'right']
-    const pixelSize = Math.floor(this.tileSize / SPRITE_SIZE)
-    const offset = Math.floor((this.tileSize - pixelSize * SPRITE_SIZE) / 2)
-
-    for (const dir of directions) {
-      for (let frame = 0; frame < 2; frame++) {
-        const rt = this.scene.add.renderTexture(0, 0, this.tileSize, this.tileSize)
-          .setOrigin(0, 0)
-          .setVisible(false)
-        const pattern = SPRITES[dir][frame]
-        const gfx = this.scene.add.graphics().setVisible(false)
-
-        for (let row = 0; row < SPRITE_SIZE; row++) {
-          for (let col = 0; col < SPRITE_SIZE; col++) {
-            const value = pattern[row][col]
-            if (value === 0) continue
-            gfx.fillStyle(PALETTE[value])
-            gfx.fillRect(
-              offset + col * pixelSize,
-              offset + row * pixelSize,
-              pixelSize,
-              pixelSize,
-            )
-          }
-        }
-
-        rt.draw(gfx)
-        gfx.destroy()
-        this.spriteCache.set(`${dir}_${frame}`, rt)
-      }
-    }
   }
 
   private applySprite(direction: Direction, frame: number): void {
