@@ -46,7 +46,7 @@ export class NetworkClient {
   }
 
   setCallbacks(callbacks: BattleCallbacks) {
-    this.callbacks = callbacks
+    this.callbacks = { ...this.callbacks, ...callbacks }
   }
 
   get sessionId(): string | null {

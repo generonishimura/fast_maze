@@ -7,6 +7,9 @@ export class BattleLobbyScene extends Phaser.Scene {
   private statusText!: Phaser.GameObjects.Text
   private readyButton!: Phaser.GameObjects.Text
   private isReady = false
+  private inputEnabled = false
+  // gameStartがREADY前に届いた場合に保持
+  private pendingGameStart: { seed: number; spawnPositions: Record<string, { row: number; col: number }> } | null = null
 
   constructor() {
     super({ key: 'BattleLobby' })
@@ -20,7 +23,14 @@ export class BattleLobbyScene extends Phaser.Scene {
     this.cameras.main.fadeIn(400, 0, 0, 0)
 
     this.isReady = false
+    this.inputEnabled = false
+    this.pendingGameStart = null
     this.network = new NetworkClient()
+
+    // フェードイン完了後に入力を有効化（前シーンのキーリーク防止）
+    this.cameras.main.once('camerafadeincomplete', () => {
+      this.inputEnabled = true
+    })
 
     // UI構築（フォント読み込み待ち）
     Promise.all([
@@ -94,14 +104,13 @@ export class BattleLobbyScene extends Phaser.Scene {
         this.statusText?.setText(`STARTING IN ${data.seconds}...`)
       },
       onGameStart: (data) => {
-        this.cameras.main.fadeOut(300, 0, 0, 0)
-        this.cameras.main.once('camerafadeoutcomplete', () => {
-          this.scene.start('BattleGame', {
-            network: this.network,
-            seed: data.seed,
-            spawnPositions: data.spawnPositions,
-          })
-        })
+        if (!this.isReady) {
+          // READY前にゲームが始まった（途中参加）→ 保持して待つ
+          this.pendingGameStart = data
+          this.statusText?.setText('Game in progress — press SPACE to join')
+          return
+        }
+        this.transitionToGame(data)
       },
       onError: (code, message) => {
         this.statusText?.setText(`Error: ${message ?? code}`)
@@ -123,17 +132,37 @@ export class BattleLobbyScene extends Phaser.Scene {
 
   private toggleReady(): void {
     if (!this.network.connected) return
+    if (!this.inputEnabled) return
 
     this.isReady = !this.isReady
     if (this.isReady) {
       this.network.sendReady()
       this.readyButton?.setColor('#00ff88')
       this.readyButton?.setText('[ READY! ]')
+
+      // 保留中のゲームがあれば即遷移
+      if (this.pendingGameStart) {
+        this.transitionToGame(this.pendingGameStart)
+        return
+      }
+
       this.statusText?.setText('Waiting for others...')
     }
   }
 
+  private transitionToGame(data: { seed: number; spawnPositions: Record<string, { row: number; col: number }> }): void {
+    this.cameras.main.fadeOut(300, 0, 0, 0)
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.scene.start('BattleGame', {
+        network: this.network,
+        seed: data.seed,
+        spawnPositions: data.spawnPositions,
+      })
+    })
+  }
+
   private backToTitle(): void {
+    if (!this.inputEnabled) return
     this.network.leave()
     this.cameras.main.fadeOut(300, 0, 0, 0)
     this.cameras.main.once('camerafadeoutcomplete', () => {

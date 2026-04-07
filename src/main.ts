@@ -24,6 +24,9 @@ const game = new Phaser.Game({
   scene: allScenes,
 })
 
+// デフォルトはミュート
+game.sound.mute = true
+
 // Mキーでミュートトグル
 const muteIndicator = document.createElement('div')
 muteIndicator.id = 'mute-indicator'
