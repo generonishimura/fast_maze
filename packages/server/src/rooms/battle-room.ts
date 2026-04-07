@@ -1,12 +1,12 @@
 import { Room, Client } from "colyseus"
 import { BattleRoomState, PlayerSchema } from "../schema.js"
 import { initBattle, battleTick, INVINCIBLE_TICKS } from "@/battle/battle-tick"
-import type { BattleGameState } from "@/battle/types"
+import { generateSpawnPositions } from "@/battle/spawn"
+import { ensureChunksAround } from "@/domain/endless-maze"
+import type { BattleGameState, BattlePlayerState } from "@/battle/types"
 import type { Direction } from "@/domain/types"
 
 const MAX_PLAYERS = 64
-const MIN_PLAYERS = 1
-const LOBBY_TIMEOUT_MS = 30_000
 const COUNTDOWN_TICKS = 60 // 3秒 @ 20Hz
 const SERVER_TICK_RATE_MS = 50 // 20Hz
 
@@ -15,8 +15,7 @@ export class BattleRoom extends Room<{ state: BattleRoomState }> {
 
   private gameState: BattleGameState | null = null
   private inputQueue = new Map<string, Direction>()
-  private readyPlayers = new Set<string>()
-  private lobbyTimer: ReturnType<typeof setTimeout> | null = null
+  private botIds = new Set<string>()
   private countdownTicks = 0
 
   messages = {
@@ -27,10 +26,14 @@ export class BattleRoom extends Room<{ state: BattleRoomState }> {
       }
     },
 
-    ready: (client: Client) => {
-      this.readyPlayers.add(client.sessionId)
-      this.broadcast("playerReady", { playerId: client.sessionId })
-      this.checkStartCondition()
+    ready: (client: Client, message: { isBot?: boolean }) => {
+      if (message?.isBot) {
+        this.botIds.add(client.sessionId)
+      }
+      // 誰か1人がreadyしたらカウントダウン開始
+      if (this.state.phase === "lobby") {
+        this.startCountdown()
+      }
     },
   }
 
@@ -42,10 +45,15 @@ export class BattleRoom extends Room<{ state: BattleRoomState }> {
     this.state.totalPlayers = 0
   }
 
-  onJoin(client: Client) {
-    // ゲーム進行中は入室拒否
-    if (this.state.phase !== "lobby") {
-      throw new Error("Game already in progress")
+  onJoin(client: Client, options?: { isBot?: boolean }) {
+    // finished以外はいつでも参加OK
+    if (this.state.phase === "finished") {
+      throw new Error("Game already finished")
+    }
+
+    // ボット識別（joinオプション経由）
+    if (options?.isBot) {
+      this.botIds.add(client.sessionId)
     }
 
     const player = new PlayerSchema()
@@ -60,6 +68,11 @@ export class BattleRoom extends Room<{ state: BattleRoomState }> {
     this.state.players.set(client.sessionId, player)
     this.state.totalPlayers = this.state.players.size
 
+    // ゲーム中の途中参加: スポーンして即参戦
+    if (this.state.phase === "playing" && this.gameState) {
+      this.spawnLateJoiner(client.sessionId)
+    }
+
     this.broadcast("playerJoined", {
       playerId: client.sessionId,
       totalPlayers: this.state.players.size,
@@ -67,47 +80,21 @@ export class BattleRoom extends Room<{ state: BattleRoomState }> {
   }
 
   onLeave(client: Client) {
-    this.readyPlayers.delete(client.sessionId)
-
-    if (this.state.phase === "lobby") {
+    if (this.state.phase === "lobby" || this.state.phase === "countdown") {
       this.state.players.delete(client.sessionId)
       this.state.totalPlayers = this.state.players.size
     } else if (this.gameState) {
-      // ゲーム中の離脱 = 脱落扱い
-      const player = this.gameState.players.get(client.sessionId)
-      if (player && (player.status === 'alive' || player.status === 'invincible')) {
-        const updated = new Map(this.gameState.players)
-        updated.set(client.sessionId, {
-          ...player,
-          status: 'eliminated',
-          eliminatedBy: 'disconnect',
-        })
-        this.gameState = { ...this.gameState, players: updated }
-      }
-    }
-  }
+      // ゲーム中の離脱: ゲーム状態から削除 & プレイヤー数更新
+      const updated = new Map(this.gameState.players)
+      updated.delete(client.sessionId)
+      this.gameState = { ...this.gameState, players: updated }
 
-  private checkStartCondition() {
-    if (this.state.phase !== "lobby") return
-
-    const playerCount = this.state.players.size
-    if (playerCount >= MIN_PLAYERS && this.readyPlayers.size >= playerCount) {
-      this.startCountdown()
-    } else if (playerCount >= MIN_PLAYERS && !this.lobbyTimer) {
-      this.lobbyTimer = setTimeout(() => {
-        if (this.readyPlayers.size >= MIN_PLAYERS) {
-          this.startCountdown()
-        }
-      }, LOBBY_TIMEOUT_MS)
+      this.state.players.delete(client.sessionId)
+      this.state.totalPlayers = this.state.players.size
     }
   }
 
   private startCountdown() {
-    if (this.lobbyTimer) {
-      clearTimeout(this.lobbyTimer)
-      this.lobbyTimer = null
-    }
-
     this.state.phase = "countdown"
     this.countdownTicks = COUNTDOWN_TICKS
     this.broadcast("countdown", { seconds: 3 })
@@ -115,9 +102,94 @@ export class BattleRoom extends Room<{ state: BattleRoomState }> {
     this.setSimulationInterval((delta) => this.update(delta), SERVER_TICK_RATE_MS)
   }
 
+  private spawnLateJoiner(sessionId: string) {
+    if (!this.gameState) return
+
+    // 既存プレイヤーの位置を避けてスポーン（seedベースで決定論的）
+    const spawns = generateSpawnPositions(this.gameState.maze, this.state.seed + this.gameState.tickCount, 1)
+    if (spawns.length === 0) return
+
+    const spawn = spawns[0]
+    let maze = ensureChunksAround(this.gameState.maze, spawn.row, spawn.col, { skipPrune: true })
+
+    const isBot = this.botIds.has(sessionId)
+    const currentTick = this.gameState.tickCount
+    const newPlayer: BattlePlayerState = {
+      id: sessionId,
+      position: spawn,
+      direction: 'right',
+      score: 0,
+      status: isBot ? 'invincible' : 'waiting',
+      eliminatedBy: null,
+      rank: null,
+      isBot,
+      invincibleUntilTick: currentTick + INVINCIBLE_TICKS,
+    }
+
+    const updatedPlayers = new Map(this.gameState.players)
+    updatedPlayers.set(sessionId, newPlayer)
+    this.gameState = { ...this.gameState, maze, players: updatedPlayers }
+
+    // Schema state反映
+    const schemaPlayer = this.state.players.get(sessionId)
+    if (schemaPlayer) {
+      schemaPlayer.row = spawn.row
+      schemaPlayer.col = spawn.col
+      schemaPlayer.direction = 'right'
+      schemaPlayer.status = newPlayer.status
+      schemaPlayer.score = 0
+    }
+
+    // 途中参加者にgameStartを送信
+    const client = this.clients.find(c => c.sessionId === sessionId)
+    if (client) {
+      client.send("gameStart", {
+        seed: this.state.seed,
+        spawnPositions: { [sessionId]: { row: spawn.row, col: spawn.col } },
+      })
+    }
+  }
+
+  private respawnBot = (botId: string) => {
+    if (!this.gameState || this.state.phase !== 'playing') return
+    const player = this.gameState.players.get(botId)
+    if (!player || player.status !== 'eliminated' || !player.isBot) return
+
+    const spawns = generateSpawnPositions(this.gameState.maze, this.state.seed + this.gameState.tickCount, 1)
+    if (spawns.length === 0) return
+
+    const spawn = spawns[0]
+    const maze = ensureChunksAround(this.gameState.maze, spawn.row, spawn.col, { skipPrune: true })
+
+    const respawned: BattlePlayerState = {
+      ...player,
+      position: spawn,
+      direction: 'right',
+      score: 0,
+      status: 'invincible',
+      eliminatedBy: null,
+      rank: null,
+      invincibleUntilTick: this.gameState.tickCount + INVINCIBLE_TICKS,
+    }
+
+    const updatedPlayers = new Map(this.gameState.players)
+    updatedPlayers.set(botId, respawned)
+    this.gameState = { ...this.gameState, maze, players: updatedPlayers }
+
+    const schemaPlayer = this.state.players.get(botId)
+    if (schemaPlayer) {
+      schemaPlayer.row = spawn.row
+      schemaPlayer.col = spawn.col
+      schemaPlayer.direction = 'right'
+      schemaPlayer.status = 'invincible'
+      schemaPlayer.score = 0
+      schemaPlayer.eliminatedBy = ''
+    }
+  }
+
   private startGame() {
     const playerIds = [...this.state.players.keys()]
-    this.gameState = initBattle(this.state.seed, playerIds)
+    this.gameState = initBattle(this.state.seed, playerIds, this.botIds)
     this.state.phase = "playing"
     this.state.aliveCount = playerIds.length
 
@@ -172,7 +244,7 @@ export class BattleRoom extends Room<{ state: BattleRoomState }> {
       schemaPlayer.eliminatedBy = battlePlayer.eliminatedBy ?? ""
       schemaPlayer.rank = battlePlayer.rank ?? -1
 
-      if (battlePlayer.status === 'alive' || battlePlayer.status === 'invincible') {
+      if (battlePlayer.status === 'alive' || battlePlayer.status === 'invincible' || battlePlayer.status === 'waiting') {
         aliveCount++
       }
 
@@ -184,6 +256,11 @@ export class BattleRoom extends Room<{ state: BattleRoomState }> {
           eliminatedBy: battlePlayer.eliminatedBy,
           rank: battlePlayer.rank,
         })
+
+        // ボットのみ3秒後にリスポーン（人間はゲームオーバー）
+        if (battlePlayer.isBot) {
+          this.clock.setTimeout(() => this.respawnBot(id), 3000)
+        }
       }
     }
 
@@ -192,6 +269,7 @@ export class BattleRoom extends Room<{ state: BattleRoomState }> {
 
     // ゲーム終了
     if (this.gameState.phase === 'finished') {
+      this.lock()
       this.state.phase = "finished"
 
       const rankings = [...this.gameState.players.values()]
