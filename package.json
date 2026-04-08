@@ -3,8 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "vite",
+    "dev:server": "npm run dev --workspace=@fast-maze/server",
+    "dev:bots": "npx tsx packages/server/src/bot/run-bots.ts",
     "build": "tsc -p tsconfig.build.json && vite build",
     "preview": "vite preview",
     "test": "vitest",
@@ -12,6 +17,7 @@
     "typecheck": "tsc -p tsconfig.build.json --noEmit"
   },
   "dependencies": {
+    "@colyseus/sdk": "^0.17.35",
     "phaser": "^3.87.0"
   },
   "devDependencies": {

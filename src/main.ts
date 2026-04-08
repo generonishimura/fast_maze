@@ -5,19 +5,27 @@ import { GameScene } from './scenes/game-scene'
 import { GameOverScene } from './scenes/game-over-scene'
 import { StageClearScene } from './scenes/stage-clear-scene'
 import { EndlessGameScene } from './scenes/endless-game-scene'
+import { BattleLobbyScene } from './scenes/battle-lobby-scene'
+import { BattleGameScene } from './scenes/battle-game-scene'
+import { BattleResultScene } from './scenes/battle-result-scene'
 
 // URLパスに応じて初期シーンを決定（重複しないよう順序を変える）
 const path = window.location.pathname.replace(/\/$/, '')
 const isEndless = path.endsWith('/endless')
 
+const battleScenes = [BattleLobbyScene, BattleGameScene, BattleResultScene]
+
 const allScenes = isEndless
-  ? [EndlessGameScene, TitleScene, GameScene, GameOverScene, StageClearScene]
-  : [TitleScene, GameScene, GameOverScene, StageClearScene, EndlessGameScene]
+  ? [EndlessGameScene, TitleScene, GameScene, GameOverScene, StageClearScene, ...battleScenes]
+  : [TitleScene, GameScene, GameOverScene, StageClearScene, EndlessGameScene, ...battleScenes]
 
 const game = new Phaser.Game({
   ...gameConfig,
   scene: allScenes,
 })
+
+// デフォルトはミュート
+game.sound.mute = true
 
 // Mキーでミュートトグル
 const muteIndicator = document.createElement('div')

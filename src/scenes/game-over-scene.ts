@@ -3,13 +3,13 @@ import Phaser from 'phaser'
 export class GameOverScene extends Phaser.Scene {
   private score = 0
   private stage = 1
-  private mode: 'normal' | 'endless' = 'normal'
+  private mode: 'normal' | 'endless' | 'battle' = 'normal'
 
   constructor() {
     super({ key: 'GameOver' })
   }
 
-  init(data: { score: number; stage: number; mode?: 'normal' | 'endless' }): void {
+  init(data: { score: number; stage: number; mode?: 'normal' | 'endless' | 'battle' }): void {
     this.score = data.score
     this.stage = data.stage
     this.mode = data.mode ?? 'normal'
@@ -33,7 +33,7 @@ export class GameOverScene extends Phaser.Scene {
 
     this.shakeText(gameOverText)
 
-    const stageLabel = this.mode === 'endless' ? 'ENDLESS' : `STAGE ${this.stage}`
+    const stageLabel = this.mode === 'battle' ? 'BATTLE' : this.mode === 'endless' ? 'ENDLESS' : `STAGE ${this.stage}`
     const stageText = this.add.text(width / 2, height / 2, stageLabel, {
       fontFamily: "'Share Tech Mono', monospace",
       fontSize: '28px',
@@ -75,7 +75,9 @@ export class GameOverScene extends Phaser.Scene {
 
     const retrySameLabel = this.mode === 'endless'
       ? 'T: Back to Title'
-      : 'R: Retry Stage'
+      : this.mode === 'battle'
+        ? 'R: Battle Again'
+        : 'R: Retry Stage'
     const retrySameText = this.add.text(width / 2, height / 2 + 185, retrySameLabel, hintStyle)
     retrySameText.setOrigin(0.5)
     retrySameText.setAlpha(0)
@@ -107,7 +109,9 @@ export class GameOverScene extends Phaser.Scene {
     const retryStage = (): void => {
       this.cameras.main.fadeOut(300, 0, 0, 0)
       this.cameras.main.once('camerafadeoutcomplete', () => {
-        if (this.mode === 'endless') {
+        if (this.mode === 'battle') {
+          this.scene.start('BattleLobby')
+        } else if (this.mode === 'endless') {
           this.scene.start('Endless')
         } else {
           this.scene.start('Game', { stageNumber: this.stage, score: 0 })
@@ -126,7 +130,7 @@ export class GameOverScene extends Phaser.Scene {
       const tKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.T)
       tKey.once('down', goToTitle)
     } else {
-      // 通常: SPACE/タップでタイトル、Rでリトライ
+      // 通常 & バトル: SPACE/タップでタイトル、Rでリトライ
       spaceKey.once('down', goToTitle)
       enterKey.once('down', goToTitle)
       this.input.once('pointerup', goToTitle)

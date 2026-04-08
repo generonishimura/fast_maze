@@ -9,18 +9,15 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
-    "baseUrl": ".",
+    "outDir": "dist",
+    "rootDir": "src",
+    "baseUrl": "../..",
     "paths": {
       "@/domain/*": ["packages/shared/src/domain/*"],
       "@/utils/*": ["packages/shared/src/utils/*"],
-      "@/battle/*": ["packages/shared/src/battle/*"],
-      "@/*": ["src/*"]
-    },
-    "outDir": "dist"
+      "@/battle/*": ["packages/shared/src/battle/*"]
+    }
   },
-  "include": ["src", "tests"],
+  "include": ["src"],
   "exclude": ["node_modules", "dist"]
 }
