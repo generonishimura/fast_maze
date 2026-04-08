@@ -126,10 +126,9 @@ export class GameScene extends Phaser.Scene {
       const queuedDirection = this.getDirection()
       if (queuedDirection !== null) {
         this.gameState = handleDirectionChange(this.gameState, queuedDirection)
-        this.movementProgress = 0
-      } else {
-        this.movementProgress = remainder
       }
+
+      this.movementProgress = remainder
 
       if (this.gameState.status === 'game-over') {
         this.playCrashEffect()
