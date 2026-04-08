@@ -256,9 +256,10 @@ export class BattleGameScene extends Phaser.Scene {
       if (queuedDirection !== null) {
         this.localDirection = queuedDirection
         this.network.sendDirection(queuedDirection)
+        this.movementProgress = 0
+      } else {
+        this.movementProgress = remainder
       }
-
-      this.movementProgress = remainder
 
       // チャンク描画更新
       this.mazeRenderer.renderChunksAround(

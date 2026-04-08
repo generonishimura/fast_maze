@@ -193,9 +193,10 @@ export class EndlessGameScene extends Phaser.Scene {
       const queuedDirection = this.getDirection()
       if (queuedDirection !== null) {
         this.gameState = handleEndlessDirectionChange(this.gameState, queuedDirection)
+        this.movementProgress = 0
+      } else {
+        this.movementProgress = remainder
       }
-
-      this.movementProgress = remainder
 
       // チャンク描画更新
       this.mazeRenderer.renderChunksAround(
